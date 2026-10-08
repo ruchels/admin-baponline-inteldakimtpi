@@ -1377,8 +1377,20 @@ function renderDocumentsStudio(row) {
         </div>`;
     }
 
+    // Konversi link Drive (uc?export=view atau file/d/.../view) ke thumbnail resmi agar tampil di <img> tanpa terblokir browser
+    let displayUrl = url;
+    let driveFileId = null;
+    if (url.includes('drive.google.com')) {
+      const matchId = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (matchId && matchId[1]) {
+        driveFileId = matchId[1];
+        displayUrl = 'https://drive.google.com/thumbnail?id=' + driveFileId + '&sz=w1200';
+      }
+    }
+
     const isPdf = url.toLowerCase().includes('.pdf');
-    const safeUrl = escKey(url);
+    const safeUrl = escKey(displayUrl);
+    const originalUrl = driveFileId ? `https://drive.google.com/file/d/${driveFileId}/view?usp=sharing` : url;
     const rotation = docRotations[d.key] || 0;
 
     return `
@@ -1391,15 +1403,18 @@ function renderDocumentsStudio(row) {
           ${isPdf ? `
             <div style="text-align:center;color:var(--text-secondary)">
               <div style="font-size:12px;margin-bottom:8px">Dokumen Berformat PDF</div>
-              <a href="${url}" target="_blank" rel="noopener" class="primary-btn compact">Buka Dokumen PDF</a>
+              <a href="${originalUrl}" target="_blank" rel="noopener" class="primary-btn compact">Buka Dokumen PDF</a>
             </div>
           ` : `
-            <img class="doc-preview-img" id="docImg_${idx}" src="${url}" alt="${d.label}" loading="lazy"
+            <img class="doc-preview-img" id="docImg_${idx}" src="${displayUrl}" alt="${d.label}" loading="lazy"
+              referrerpolicy="no-referrer"
+              onerror="this.onerror=null; if(this.src.indexOf('thumbnail')!==-1){ this.src='${url}'; }"
               style="transform: rotate(${rotation}deg)"
               onclick="openLightbox('${safeUrl}', '${escKey(d.label)}')">
             <div class="doc-action-overlay">
               <button class="doc-tool-pill" onclick="rotateCardDoc('${d.key}', 'docImg_${idx}', 90)">Putar 90°</button>
               <button class="doc-tool-pill" onclick="openLightbox('${safeUrl}', '${escKey(d.label)}')">Perbesar</button>
+              <a href="${originalUrl}" target="_blank" rel="noopener" class="doc-tool-pill" style="text-decoration:none;display:inline-flex;align-items:center;">Buka Berkas Asli ↗</a>
             </div>
           `}
         </div>
