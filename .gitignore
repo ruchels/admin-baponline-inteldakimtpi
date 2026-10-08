@@ -1,0 +1,10 @@
+.env
+.env.*
+*.env
+credentials*
+secrets*
+service-account*
+node_modules/
+_backup*/
+*.log
+*.txt
