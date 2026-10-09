@@ -2179,6 +2179,7 @@ const PAGE_META = {
   jadwal: ['Manajemen Jadwal Kedatangan', 'Pengaturan Hari Libur & Sesi Kedatangan'],
   users: ['Manajemen Akun Pemohon', 'Pusat Kontrol Akun Pengguna Terdaftar'],
   rekap: ['Rekap & Laporan', 'Statistik Pelayanan Keimigrasian'],
+  audit: ['Pusat Audit Log & Keamanan', 'Jejak Riwayat Aktivitas Seluruh Sistem'],
 };
 
 // ── Navigation History ──────────────────────────────────────────
@@ -2204,6 +2205,7 @@ function navTo(page, el) {
 
   if (page === 'users') loadUsers(false, usersLoaded);
   if (page === 'jadwal') initScheduleView();
+  if (page === 'audit') loadAuditLogs(false, auditLoaded);
 
   // Track navigation history (skip if navigating via back/forward)
   if (!navHistoryNavigating) {
@@ -2886,6 +2888,262 @@ function exportUsersExcel() {
   playSuccessChime();
   showToast('success', `Ekspor ${rows.length} akun pemohon berhasil`);
   logActivity('Ekspor Akun', `Mengunduh ${rows.length} akun pemohon.`);
+}
+
+/* ================================================================
+   MODUL PUSAT AUDIT LOG & JEJAK KEAMANAN SISTEM
+   ================================================================ */
+let allAuditLogs = [];
+let auditLoaded = false;
+let auditCurrentPage = 1;
+const AUDIT_PAGE_SIZE = 25;
+
+async function loadAuditLogs(manual = false, silent = false) {
+  const btn = $('refreshAuditBtn');
+  if (btn) btn.classList.add('spinning');
+  try {
+    const res = await fetch(`${SHEET_URL}?action=getAuditLogs&token=${encodeURIComponent(getAdminToken())}&t=${Date.now()}`, { cache: 'no-store' });
+    const json = await res.json();
+
+    if (json && json.needLogin) { handleSessionExpired(); return; }
+    if (!Array.isArray(json)) {
+      if (!silent) showToast('error', (json && json.error) || 'Gagal memuat catatan log audit');
+      renderAuditError((json && json.error) || 'Gagal memuat catatan log audit.');
+      return;
+    }
+
+    allAuditLogs = json;
+    auditLoaded = true;
+    refreshAuditView();
+
+    if (manual) {
+      playSuccessChime();
+      showToast('success', `${allAuditLogs.length} catatan audit log berhasil disinkronkan`);
+      logActivity('Sinkronisasi Audit', `Memuat ${allAuditLogs.length} catatan audit log.`);
+    }
+  } catch (err) {
+    console.error('loadAuditLogs error:', err);
+    if (!silent) showToast('error', 'Koneksi gagal saat memuat log audit');
+    renderAuditError('Koneksi ke server gagal. Tekan "Sinkron Log" untuk mencoba lagi.');
+  } finally {
+    if (btn) btn.classList.remove('spinning');
+  }
+}
+
+function renderAuditError(msg) {
+  if (auditLoaded) return;
+  const tb = $('auditTableBody');
+  if (tb) tb.innerHTML = `<tr><td colspan="7"><div class="table-loader-state error">${escHtml(msg)}</div></td></tr>`;
+  const sub = $('auditTblSubtitle');
+  if (sub) sub.textContent = 'Data log audit belum termuat';
+}
+
+function refreshAuditView() {
+  if (!auditLoaded) return;
+  updateAuditStats();
+  renderAuditTable();
+}
+
+function updateAuditStats() {
+  const total = allAuditLogs.length;
+  const adminCount = allAuditLogs.filter(a => String(a.role).toUpperCase() === 'ADMIN').length;
+  const userCount = allAuditLogs.filter(a => String(a.role).toUpperCase() === 'USER').length;
+  const systemCount = allAuditLogs.filter(a => String(a.role).toUpperCase() === 'SYSTEM').length;
+  const pct = n => total ? Math.round((n / total) * 100) + '%' : '0%';
+
+  const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+  set('ac-total', total);
+  set('ac-admin', adminCount);
+  set('ac-user', userCount);
+  set('ac-system', systemCount);
+  set('tileAuditTotalRatio', '100%');
+  set('tileAuditAdminRatio', pct(adminCount));
+  set('tileAuditUserRatio', pct(userCount));
+  set('tileAuditSystemRatio', pct(systemCount));
+
+  const badge = $('navAuditBadge');
+  if (badge) {
+    badge.textContent = total;
+    badge.style.display = total ? 'inline-block' : 'none';
+  }
+}
+
+function getFilteredAuditLogs() {
+  const q = ($('auditSearchInput')?.value || '').toLowerCase().trim();
+  const role = ($('auditFilterRole')?.value || '').toUpperCase();
+  const resFilter = ($('auditFilterResult')?.value || '').toUpperCase();
+
+  return allAuditLogs.filter(a => {
+    if (q) {
+      const hay = `${a.timestamp} ${a.actor} ${a.role} ${a.action} ${a.target} ${a.result}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (role && String(a.role).toUpperCase() !== role) return false;
+    if (resFilter) {
+      const resVal = String(a.result || '').toUpperCase();
+      if (resFilter === 'SUCCESS' && (resVal.includes('FAIL') || resVal.includes('ERROR') || resVal.includes('LOCKOUT'))) return false;
+      if (resFilter === 'FAILED' && !resVal.includes('FAIL') && !resVal.includes('ERROR') && !resVal.includes('LOCKOUT')) return false;
+    }
+    return true;
+  });
+}
+
+function resetAuditPageAndRender() {
+  auditCurrentPage = 1;
+  renderAuditTable();
+}
+
+function filterAuditFromTile(type) {
+  const roleSelect = $('auditFilterRole');
+  const resSelect = $('auditFilterResult');
+  const searchInput = $('auditSearchInput');
+  if (searchInput) searchInput.value = '';
+  if (resSelect) resSelect.value = '';
+
+  if (roleSelect) {
+    if (type === 'all') roleSelect.value = '';
+    else roleSelect.value = type;
+  }
+  resetAuditPageAndRender();
+}
+
+function renderAuditTable() {
+  const tb = $('auditTableBody');
+  if (!tb) return;
+
+  const filtered = getFilteredAuditLogs();
+  const total = filtered.length;
+
+  const sub = $('auditTblSubtitle');
+  if (sub) {
+    sub.textContent = total
+      ? `Menampilkan ${total} catatan log aktivitas dari total ${allAuditLogs.length} jejak audit.`
+      : 'Tidak ada catatan log aktivitas yang cocok dengan filter.';
+  }
+
+  if (!total) {
+    tb.innerHTML = `<tr><td colspan="7"><div class="table-empty-notice"><p>Tidak ada catatan log aktivitas yang sesuai kriteria pencarian.</p></div></td></tr>`;
+    renderAuditPagination(0, 0);
+    return;
+  }
+
+  const totalPages = Math.ceil(total / AUDIT_PAGE_SIZE);
+  if (auditCurrentPage > totalPages) auditCurrentPage = totalPages;
+  const start = (auditCurrentPage - 1) * AUDIT_PAGE_SIZE;
+  const paged = filtered.slice(start, start + AUDIT_PAGE_SIZE);
+
+  tb.innerHTML = paged.map((item, idx) => {
+    const num = start + idx + 1;
+    const roleUpper = String(item.role || '').toUpperCase();
+    let roleBadge = '<span class="status-badge grey">SYSTEM</span>';
+    if (roleUpper === 'ADMIN') roleBadge = '<span class="status-badge blue">ADMIN</span>';
+    else if (roleUpper === 'USER') roleBadge = '<span class="status-badge green">USER</span>';
+
+    const resStr = String(item.result || '').toUpperCase();
+    let resBadge = '<span class="status-badge green">OK / SUCCESS</span>';
+    if (resStr.includes('FAIL') || resStr.includes('ERROR') || resStr.includes('LOCKOUT') || resStr.includes('REJECT')) {
+      resBadge = `<span class="status-badge red">${escHtml(item.result || 'FAILED')}</span>`;
+    } else if (resStr.includes('PENDING')) {
+      resBadge = `<span class="status-badge orange">${escHtml(item.result || 'PENDING')}</span>`;
+    } else if (item.result) {
+      resBadge = `<span class="status-badge green">${escHtml(item.result)}</span>`;
+    }
+
+    return `
+      <tr>
+        <td style="color:var(--text-muted);font-size:12px">${num}</td>
+        <td style="font-family:monospace;font-size:12px;white-space:nowrap;color:var(--sky-400)">
+          ${escHtml(item.timestamp || '-')}
+        </td>
+        <td style="font-weight:600;color:var(--text-primary)">
+          ${escHtml(item.actor || '-')}
+        </td>
+        <td>${roleBadge}</td>
+        <td>
+          <span style="font-weight:600;font-family:monospace;font-size:12px">${escHtml(item.action || '-')}</span>
+        </td>
+        <td style="max-width:240px;word-break:break-word;font-size:13px;color:var(--text-secondary)">
+          ${escHtml(item.target || '-')}
+        </td>
+        <td style="text-align:right">${resBadge}</td>
+      </tr>
+    `;
+  }).join('');
+
+  renderAuditPagination(total, totalPages);
+}
+
+function renderAuditPagination(total, totalPages) {
+  const info = $('auditPgInfo');
+  const btns = $('auditPgBtns');
+  if (!info || !btns) return;
+
+  if (!total) {
+    info.textContent = 'Menampilkan 0 catatan';
+    btns.innerHTML = '';
+    return;
+  }
+
+  const start = (auditCurrentPage - 1) * AUDIT_PAGE_SIZE + 1;
+  const end = Math.min(auditCurrentPage * AUDIT_PAGE_SIZE, total);
+  info.textContent = `Menampilkan ${start} - ${end} dari ${total} catatan log`;
+
+  let html = `<button class="pg-arrow-btn" ${auditCurrentPage === 1 ? 'disabled' : ''} onclick="changeAuditPage(${auditCurrentPage - 1})" aria-label="Halaman sebelumnya">&lt;</button>`;
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || (i >= auditCurrentPage - 2 && i <= auditCurrentPage + 2)) {
+      html += `<button class="pg-num-btn ${i === auditCurrentPage ? 'active' : ''}" onclick="changeAuditPage(${i})">${i}</button>`;
+    } else if (i === auditCurrentPage - 3 || i === auditCurrentPage + 3) {
+      html += `<span class="pg-ellipsis">...</span>`;
+    }
+  }
+  html += `<button class="pg-arrow-btn" ${auditCurrentPage === totalPages ? 'disabled' : ''} onclick="changeAuditPage(${auditCurrentPage + 1})" aria-label="Halaman berikutnya">&gt;</button>`;
+  btns.innerHTML = html;
+}
+
+function changeAuditPage(p) {
+  auditCurrentPage = p;
+  renderAuditTable();
+}
+
+function exportAuditExcel() {
+  const filtered = getFilteredAuditLogs();
+  if (!filtered.length) return showToast('error', 'Tidak ada catatan log untuk diekspor');
+
+  const rows = filtered.map((a, i) => ({
+    'No': i + 1,
+    'Waktu': a.timestamp || '',
+    'Pelaku': a.actor || '',
+    'Role': a.role || '',
+    'Aksi': a.action || '',
+    'Target': a.target || '',
+    'Status Hasil': a.result || ''
+  }));
+
+  if (window.XLSX) {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [{ wch: 4 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 24 }, { wch: 28 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Audit Log');
+    const n = new Date();
+    const dateStr = `${n.getFullYear()}${String(n.getMonth() + 1).padStart(2, '0')}${String(n.getDate()).padStart(2, '0')}`;
+    XLSX.writeFile(wb, `Audit_Log_SIPALARUS_${dateStr}.xlsx`);
+    playSuccessChime();
+    showToast('success', `Ekspor ${rows.length} catatan audit log berhasil`);
+  } else {
+    // Fallback export CSV
+    const csvContent = 'data:text/csv;charset=utf-8,' +
+      ['No,Waktu,Pelaku,Role,Aksi,Target,Hasil']
+      .concat(rows.map(r => `"${r['No']}","${r['Waktu']}","${r['Pelaku']}","${r['Role']}","${r['Aksi']}","${r['Target']}","${r['Status Hasil']}"`))
+      .join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Audit_Log_SIPALARUS.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('success', `Ekspor CSV berhasil`);
+  }
 }
 
 /* ================================================================

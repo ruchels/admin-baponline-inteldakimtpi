@@ -208,9 +208,10 @@
 
         <div class="nav-section-title">Alat &amp; Audit</div>
 
-        <button class="nav-item" role="menuitem" onclick="openAuditModal()">
+        <button class="nav-item" role="menuitem" data-page="audit" onclick="navTo('audit',this)">
           <span class="nav-icon" aria-hidden="true">A</span>
-          <span class="nav-label">Log Aktivitas</span>
+          <span class="nav-label">Audit Log</span>
+          <span class="nav-badge blue" id="navAuditBadge" style="display:none">0</span>
         </button>
 
         <button class="nav-item" role="menuitem" onclick="openShortcutsModal()">
@@ -1088,6 +1089,139 @@
           <div class="pagination-footer-bar">
             <div class="pg-status-info" id="userPgInfo" aria-live="polite">Menampilkan data akun...</div>
             <div class="pg-controls-wrap" id="userPgBtns" role="navigation" aria-label="Navigasi halaman data akun">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           AUDIT LOG & SECURITY AUDIT TRAIL VIEW
+      ============================================================ -->
+      <section class="page-view" id="page-audit" aria-label="Halaman Jejak Audit Log Aktivitas">
+        <!-- Hero Banner -->
+        <div class="users-hero-banner">
+          <div class="uhb-content">
+            <div class="dhb-badge-row">
+              <span class="dhb-badge">INTELDAKIM TANJUNGPINANG</span>
+              <span class="dhb-badge-outline">ADMIN SIPALARUS</span>
+              <span class="dhb-badge-gold">SECURITY &amp; AUDIT TRAIL</span>
+            </div>
+            <h2>Pusat Log Aktivitas &amp; Jejak Audit Sistem</h2>
+            <p>Pantau seluruh aktivitas keimigrasian secara real-time, meliputi login petugas, persetujuan/penolakan reschedule, perubahan status berkas, verifikasi pendaftaran, serta pengiriman notifikasi WhatsApp.</p>
+          </div>
+          <div class="uhb-actions">
+            <button class="primary-btn excel-btn" onclick="exportAuditExcel()"
+              aria-label="Unduh daftar audit log ke CSV / Excel">
+              <span>Export Log (CSV)</span>
+            </button>
+            <button class="tbl-action-btn refresh-user-btn" id="refreshAuditBtn" onclick="loadAuditLogs(true)"
+              title="Sinkronkan data log dari Google Sheets">
+              <span>Sinkron Log</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Metric Stat Cards -->
+        <div class="stat-overview-grid users-stat-grid" role="region" aria-label="Ringkasan Statistik Log Audit">
+          <div class="stat-tile tile-total" onclick="filterAuditFromTile('all')">
+            <div class="stat-tile-head">
+              <span class="tile-icon-badge">Total</span>
+              <span class="tile-ratio" id="tileAuditTotalRatio">100%</span>
+            </div>
+            <div class="stat-tile-value" id="ac-total">0</div>
+            <div class="stat-tile-label">Total Log Tersimpan</div>
+          </div>
+
+          <div class="stat-tile tile-conf" onclick="filterAuditFromTile('ADMIN')">
+            <div class="stat-tile-head">
+              <span class="tile-icon-badge blue">Admin</span>
+              <span class="tile-ratio" id="tileAuditAdminRatio">0%</span>
+            </div>
+            <div class="stat-tile-value" id="ac-admin">0</div>
+            <div class="stat-tile-label">Aktivitas Petugas</div>
+          </div>
+
+          <div class="stat-tile tile-done" onclick="filterAuditFromTile('USER')">
+            <div class="stat-tile-head">
+              <span class="tile-icon-badge green">Pemohon</span>
+              <span class="tile-ratio" id="tileAuditUserRatio">0%</span>
+            </div>
+            <div class="stat-tile-value" id="ac-user">0</div>
+            <div class="stat-tile-label">Aktivitas Pemohon</div>
+          </div>
+
+          <div class="stat-tile tile-rs" onclick="filterAuditFromTile('SYSTEM')">
+            <div class="stat-tile-head">
+              <span class="tile-icon-badge orange">Sistem / WA</span>
+              <span class="tile-ratio" id="tileAuditSystemRatio">0%</span>
+            </div>
+            <div class="stat-tile-value" id="ac-system">0</div>
+            <div class="stat-tile-label">Notifikasi &amp; Sistem</div>
+          </div>
+        </div>
+
+        <!-- Table Card Panel -->
+        <div class="card-panel users-table-card">
+          <div class="card-panel-header">
+            <div class="cph-title-group">
+              <h3>Jejak Riwayat Aktivitas (Server-Side Sheet: AUDIT_LOG)</h3>
+              <span class="cph-sub" id="auditTblSubtitle">Memuat catatan log audit...</span>
+            </div>
+
+            <div class="database-toolbar-group">
+              <div class="search-input-box user-search-box">
+                <span class="search-ico-label" aria-hidden="true">CARI</span>
+                <input type="search" id="auditSearchInput"
+                  placeholder="Cari pelaku, aksi, target registrasi, atau status..."
+                  oninput="resetAuditPageAndRender()" aria-label="Cari data log audit">
+              </div>
+
+              <select class="control-select" id="auditFilterRole" onchange="resetAuditPageAndRender()"
+                aria-label="Filter role pelaku">
+                <option value="">Semua Role</option>
+                <option value="ADMIN">ADMIN / Petugas</option>
+                <option value="USER">USER / Pemohon</option>
+                <option value="SYSTEM">SYSTEM / Notifikasi</option>
+              </select>
+
+              <select class="control-select" id="auditFilterResult" onchange="resetAuditPageAndRender()"
+                aria-label="Filter status hasil">
+                <option value="">Semua Hasil</option>
+                <option value="SUCCESS">SUCCESS / OK / Diterima</option>
+                <option value="FAILED">FAILED / ERROR / Gagal</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-responsive-wrapper">
+            <table class="data-table" id="auditTable" aria-label="Tabel jejak audit aktivitas sistem">
+              <thead>
+                <tr>
+                  <th scope="col" style="width: 44px">No</th>
+                  <th scope="col" style="width: 175px">Waktu Kejadian (WIB)</th>
+                  <th scope="col" style="width: 140px">Pelaku (Actor)</th>
+                  <th scope="col" style="width: 100px">Role</th>
+                  <th scope="col">Tindakan / Aksi</th>
+                  <th scope="col">Objek / Sasaran Target</th>
+                  <th scope="col" style="text-align: right; width: 140px">Hasil / Status</th>
+                </tr>
+              </thead>
+              <tbody id="auditTableBody">
+                <tr class="loading-state-row">
+                  <td colspan="7">
+                    <div class="table-loader-state">
+                      <span class="spinner-circle"></span>
+                      <span>Mengambil jejak audit aktivitas dari Google Sheets...</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pagination-footer-bar">
+            <div class="pg-status-info" id="auditPgInfo" aria-live="polite">Menampilkan catatan audit...</div>
+            <div class="pg-controls-wrap" id="auditPgBtns" role="navigation" aria-label="Navigasi halaman log audit">
             </div>
           </div>
         </div>
