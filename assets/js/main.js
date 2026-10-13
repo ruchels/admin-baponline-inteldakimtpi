@@ -1089,11 +1089,40 @@ function bulkCopyPhones() {
 }
 
 // ── WhatsApp Direct Sender ───────────────────────────────────────
+function formatWAMeTarget(hp) {
+  if (!hp) return '';
+  const s = String(hp).trim();
+  const digits = s.replace(/\D/g, '');
+  if (!digits) return '';
+
+  // Jika eksplisit diawali + atau sudah memiliki kode negara
+  if (s.startsWith('+')) {
+    return digits;
+  }
+  // Format lokal Indonesia (08...)
+  if (digits.startsWith('08')) {
+    return '62' + digits.slice(1);
+  }
+  // Format legacy sheet tanpa leading 0 (812...)
+  if (digits.startsWith('8') && (digits.length >= 9 && digits.length <= 13)) {
+    return '62' + digits;
+  }
+  // Format lokal umum dengan leading 0
+  if (digits.startsWith('0')) {
+    return '62' + digits.slice(1);
+  }
+  // Sudah internasional tanpa tanda plus (cth: 62..., 60..., 65...)
+  return digits;
+}
+
 function openWA(hp) {
   if (!hp) return;
-  const clean = String(hp).replace(/\D/g, '');
-  const intl = clean.startsWith('0') ? '62' + clean.slice(1) : clean;
-  window.open(`https://wa.me/${intl}`, '_blank');
+  const target = formatWAMeTarget(hp);
+  if (!target) {
+    showToast('error', 'Nomor telepon pemohon tidak valid.');
+    return;
+  }
+  window.open(`https://wa.me/${target}`, '_blank');
 }
 
 // ── Reschedule Page Table & Actions ──────────────────────────────
@@ -1704,9 +1733,12 @@ function sendDirectWAMessage() {
     return;
   }
   const text = $('waMessageEditor')?.value || '';
-  const clean = String(currentRow.hp).replace(/\D/g, '');
-  const intl = clean.startsWith('0') ? '62' + clean.slice(1) : clean;
-  const url = `https://wa.me/${intl}?text=${encodeURIComponent(text)}`;
+  const target = formatWAMeTarget(currentRow.hp);
+  if (!target) {
+    showToast('error', 'Format nomor WhatsApp pemohon tidak valid');
+    return;
+  }
+  const url = `https://wa.me/${target}?text=${encodeURIComponent(text)}`;
   logActivity('Kirim Pesan WhatsApp', `Mengirim template pesan ke ${currentRow.nama} (${currentRow.hp}).`);
   window.open(url, '_blank');
 }
