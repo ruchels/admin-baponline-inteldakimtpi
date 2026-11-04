@@ -2605,6 +2605,19 @@ function renderUsersTable() {
       const initial = (u.nama || 'U').trim().charAt(0).toUpperCase();
       const female = /^p/i.test(u.jenis_kelamin);
       const nik = escHtml(u.nik);
+      const baps = bapOfNik(u.nik);
+      const bapPhones = Array.from(new Set(baps.map(r => String(r.hp || '').trim()).filter(Boolean)));
+      let phoneBadge = '';
+      if (u.phone_verified && u.phone_number) {
+        phoneBadge = `<span class="status-pill done" title="WhatsApp Terverifikasi"><span class="status-pill-dot"></span>${escHtml(u.phone_number)}</span>`;
+      } else if (bapPhones.length === 1) {
+        phoneBadge = `<span class="status-pill warn" title="Kandidat dari berkas BAP (Belum OTP)"><span class="status-pill-dot"></span>${escHtml(bapPhones[0])} <small>(BAP)</small></span>`;
+      } else if (bapPhones.length > 1) {
+        phoneBadge = `<span class="status-pill danger" title="Ditemukan beberapa nomor berbeda di berkas BAP"><span class="status-pill-dot"></span>Konflik (${bapPhones.length})</span>`;
+      } else {
+        phoneBadge = `<span class="status-pill neutral" title="Belum terhubung nomor WhatsApp"><span class="status-pill-dot"></span>Belum Ada</span>`;
+      }
+
       return `
       <tr class="user-row" onclick="openUserDetail('${nik}')">
         <td>${start + i + 1}</td>
@@ -2615,6 +2628,7 @@ function renderUsersTable() {
             <span class="user-name">${highlight(u.nama || '-', ($('userSearchInput')?.value || '').trim())}</span>
           </div>
         </td>
+        <td>${phoneBadge}</td>
         <td>${escHtml(formatTglLahirUsia(u.tanggal_lahir, true))}</td>
         <td>${escHtml(u.jenis_kelamin || '-')}</td>
         <td>${escHtml(String(u.waktu_daftar || '-').replace(/\s*WIB$/, ''))}</td>
@@ -2668,6 +2682,19 @@ function openUserDetail(nik) {
   set('udPassword', 'Tersimpan Aman (SHA-256 Hashed)');
 
   const baps = bapOfNik(u.nik);
+  const bPhones = Array.from(new Set(baps.map(r => String(r.hp || '').trim()).filter(Boolean)));
+  const phoneStatusEl = $('udPhoneStatus');
+  if (phoneStatusEl) {
+    if (u.phone_verified && u.phone_number) {
+      phoneStatusEl.innerHTML = `<span style="color:#10b981;font-weight:700;">✅ Terverifikasi: ${escHtml(u.phone_number)}</span>`;
+    } else if (bPhones.length === 1) {
+      phoneStatusEl.innerHTML = `<span style="color:#f59e0b;font-weight:600;">⚠️ Kandidat BAP: ${escHtml(bPhones[0])} (Belum Diverifikasi OTP)</span>`;
+    } else if (bPhones.length > 1) {
+      phoneStatusEl.innerHTML = `<span style="color:#ef4444;font-weight:600;">❌ Konflik: ${bPhones.length} nomor berbeda di riwayat BAP</span>`;
+    } else {
+      phoneStatusEl.innerHTML = `<span style="color:#94a3b8;">Belum ada nomor WhatsApp</span>`;
+    }
+  }
   set('udBapCountBadge', `${baps.length} Berkas Ditemukan`);
   const list = $('udBapList');
   if (list) {
@@ -3885,5 +3912,124 @@ async function submitBulkHolidays(isHoliday) {
   } else {
     restoreSchedule(snap);   // modal tetap terbuka agar petugas bisa mencoba lagi
     if (!r.silent) { playAlertChime(); showToast('error', r.error); }
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════
+   BANTUAN PENAUTAN WHATSAPP OLEH PETUGAS RESMI
+═══════════════════════════════════════════════════ */
+let activeOfficerTargetNik = null;
+
+function openOfficerLinkPhoneModal(nik) {
+  const u = findUser(nik);
+  if (!u) return;
+  activeOfficerTargetNik = u.nik;
+
+  closeUserDetailModal();
+  const overlay = $('officerPhoneOverlay');
+  if (!overlay) return;
+
+  $('opNik').value = u.nik;
+  $('opNama').value = u.nama || '-';
+  $('opNewPhone').value = u.phone_number || '';
+  $('opReason').value = '';
+
+  $('opStepInput').style.display = 'block';
+  $('opStepOtp').style.display = 'none';
+  $('btnOpSendOtp').style.display = 'inline-block';
+  $('btnOpVerifyOtp').style.display = 'none';
+
+  overlay.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => $('opNewPhone').focus(), 50);
+}
+
+function openOfficerLinkPhoneFromDetail() {
+  if (activeUser) openOfficerLinkPhoneModal(activeUser.nik);
+}
+
+function closeOfficerLinkPhoneModal() {
+  $('officerPhoneOverlay')?.classList.remove('show');
+  if (!document.querySelector('#modalOverlay.show, #userDetailOverlay.show, #userFormOverlay.show, #userResetPassOverlay.show, #userDeleteOverlay.show')) {
+    document.body.style.overflow = '';
+  }
+}
+
+async function submitOfficerSendOtp() {
+  if (!activeOfficerTargetNik) return;
+  const newPhone = ($('opNewPhone')?.value || '').trim();
+  const reason = ($('opReason')?.value || '').trim();
+
+  if (!newPhone) return showToast('error', 'Nomor WhatsApp baru pemohon wajib diisi');
+  if (!reason) return showToast('error', 'Catatan / Alasan verifikasi SOP fisik wajib diisi');
+
+  const btn = $('btnOpSendOtp');
+  if (btn) { btn.disabled = true; btn.textContent = 'Mengirim OTP...'; }
+
+  try {
+    const res = await apiPost({
+      action: 'officerRequestLinkPhoneOtp',
+      nik: activeOfficerTargetNik,
+      newPhone: newPhone,
+      alasan: reason
+    });
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Kirim Kode OTP →'; }
+
+    if (!res.ok) {
+      return showToast('error', res.error || 'Gagal mengirimkan kode OTP ke WhatsApp pemohon');
+    }
+
+    playSuccessChime();
+    showToast('success', 'Kode OTP berhasil dikirimkan ke WhatsApp pemohon');
+
+    $('opMaskedPhone').textContent = res.maskedPhone || newPhone;
+    $('opStepInput').style.display = 'none';
+    $('opStepOtp').style.display = 'block';
+    $('btnOpSendOtp').style.display = 'none';
+    $('btnOpVerifyOtp').style.display = 'inline-block';
+    $('opOtpInput').value = '';
+
+    setTimeout(() => $('opOtpInput').focus(), 50);
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Kirim Kode OTP →'; }
+    showToast('error', 'Koneksi ke server gagal');
+  }
+}
+
+async function submitOfficerVerifyOtp() {
+  if (!activeOfficerTargetNik) return;
+  const otp = ($('opOtpInput')?.value || '').trim();
+
+  if (!/^\d{6}$/.test(otp)) {
+    return showToast('error', 'Kode OTP harus berupa 6 digit angka');
+  }
+
+  const btn = $('btnOpVerifyOtp');
+  if (btn) { btn.disabled = true; btn.textContent = 'Memverifikasi...'; }
+
+  try {
+    const res = await apiPost({
+      action: 'officerConfirmLinkPhone',
+      nik: activeOfficerTargetNik,
+      otp: otp
+    });
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Verifikasi & Tautkan Nomor'; }
+
+    if (!res.ok) {
+      return showToast('error', res.error || 'Verifikasi OTP gagal');
+    }
+
+    playSuccessChime();
+    showToast('success', 'Nomor WhatsApp pemohon berhasil diverifikasi dan ditautkan');
+    logActivity('Bantuan Penautan WA', `Menautkan nomor baru untuk pemohon NIK ${activeOfficerTargetNik}.`);
+
+    closeOfficerLinkPhoneModal();
+    await loadUsers(false, true);
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Verifikasi & Tautkan Nomor'; }
+    showToast('error', 'Gagal memverifikasi ke server');
   }
 }

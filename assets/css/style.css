@@ -4848,3 +4848,18 @@ body.light-mode .cal-month-input { color-scheme: light; }
 
 /* dialog konfirmasi harus selalu di atas semua modal lain (mis. modal hari libur massal) */
 #confirmOverlay { z-index: 2000; }
+
+/* Status pills for WhatsApp verification and candidates */
+.status-pill.warn {
+  background: rgba(234, 179, 8, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(234, 179, 8, 0.25);
+}
+.status-pill.warn .status-pill-dot { background: #fbbf24; }
+
+.status-pill.danger {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.status-pill.danger .status-pill-dot { background: #f87171; }
