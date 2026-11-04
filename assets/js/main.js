@@ -2782,7 +2782,7 @@ function openEditUserFromDetail() {
 
 function closeUserFormModal() {
   $('userFormOverlay')?.classList.remove('show');
-  if (!document.querySelector('#modalOverlay.show, #userDetailOverlay.show, #userResetPassOverlay.show, #userDeleteOverlay.show')) {
+  if (!document.querySelector('#modalOverlay.show, #userDetailOverlay.show, #userResetPassOverlay.show, #userDeleteOverlay.show, #officerPhoneOverlay.show')) {
     document.body.style.overflow = '';
   }
 }
@@ -2843,7 +2843,7 @@ function openResetPasswordFromDetail() {
 
 function closeResetPasswordModal() {
   $('userResetPassOverlay')?.classList.remove('show');
-  if (!document.querySelector('#modalOverlay.show, #userDetailOverlay.show, #userFormOverlay.show, #userDeleteOverlay.show')) {
+  if (!document.querySelector('#modalOverlay.show, #userDetailOverlay.show, #userFormOverlay.show, #userDeleteOverlay.show, #officerPhoneOverlay.show')) {
     document.body.style.overflow = '';
   }
 }
@@ -2893,7 +2893,7 @@ function openDeleteUserFromDetail() {
 
 function closeDeleteUserModal() {
   $('userDeleteOverlay')?.classList.remove('show');
-  if (!document.querySelector('#modalOverlay.show, #userDetailOverlay.show, #userFormOverlay.show, #userResetPassOverlay.show')) {
+  if (!document.querySelector('#modalOverlay.show, #userDetailOverlay.show, #userFormOverlay.show, #userResetPassOverlay.show, #officerPhoneOverlay.show')) {
     document.body.style.overflow = '';
   }
 }
@@ -3951,7 +3951,7 @@ function openOfficerLinkPhoneFromDetail() {
 
 function closeOfficerLinkPhoneModal() {
   $('officerPhoneOverlay')?.classList.remove('show');
-  if (!document.querySelector('#modalOverlay.show, #userDetailOverlay.show, #userFormOverlay.show, #userResetPassOverlay.show, #userDeleteOverlay.show')) {
+  if (!document.querySelector('#modalOverlay.show, #userDetailOverlay.show, #userFormOverlay.show, #userResetPassOverlay.show, #officerPhoneOverlay.show, #userDeleteOverlay.show')) {
     document.body.style.overflow = '';
   }
 }

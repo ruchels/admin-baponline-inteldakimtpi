@@ -1833,50 +1833,55 @@
   <!-- ============================================================
        MODAL: BANTUAN PENAUTAN WHATSAPP OLEH PETUGAS
   ============================================================ -->
-  <div id="officerPhoneOverlay" role="dialog" aria-modal="true" aria-labelledby="opTitle">
+  <div id="officerPhoneOverlay" role="dialog" aria-modal="true" aria-labelledby="opTitle" onclick="if(event.target===this)closeOfficerLinkPhoneModal()">
     <div class="user-form-dialog">
-      <div class="uf-header">
-        <div class="uf-emblem" style="background:#16a34a">WA</div>
-        <div>
-          <h3 id="opTitle">Bantuan Penautan WhatsApp Pemohon</h3>
-          <p class="uf-sub">Verifikasi identitas resmi sebelum menautkan nomor baru</p>
+      <div class="uf-header" style="justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="uf-emblem" style="background:linear-gradient(135deg, #10b981, #059669);">WA</div>
+          <div>
+            <h3 id="opTitle" style="margin:0;">Bantuan Penautan WhatsApp</h3>
+            <p class="uf-sub" style="margin:2px 0 0;">Verifikasi fisik resmi sebelum menautkan nomor baru</p>
+          </div>
         </div>
+        <button type="button" class="tbl-action-btn" onclick="closeOfficerLinkPhoneModal()" style="border:none;background:transparent;color:var(--text-muted);font-size:18px;cursor:pointer;padding:4px 8px;line-height:1;" title="Tutup">&times;</button>
       </div>
 
       <div class="uf-body">
-        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:12px; margin-bottom:14px; font-size:12.5px; color:#166534; line-height:1.45;">
-          <strong>SOP Petugas:</strong> Pastikan pemohon hadir langsung dan dokumen identitas fisik (KTP/KK) telah diverifikasi keasliannya sebelum nomor baru ditautkan. Seluruh tindakan dicatat pada Log Audit Server.
+        <div class="op-sop-callout">
+          <strong>SOP Petugas:</strong> Pastikan pemohon hadir langsung dan dokumen identitas fisik (KTP/KK) asli telah diverifikasi. Seluruh tindakan dicatat permanen pada Log Audit Server.
         </div>
 
         <div id="opStepInput">
-          <div class="uf-field">
-            <label for="opNik">NIK Pemohon</label>
-            <input type="text" id="opNik" readonly style="background:#f1f5f9; font-weight:700;">
+          <div class="uf-field-grid">
+            <div class="uf-field">
+              <label for="opNik">NIK Pemohon</label>
+              <input type="text" id="opNik" readonly style="font-weight:700;">
+            </div>
+            <div class="uf-field">
+              <label for="opNama">Nama Pemohon</label>
+              <input type="text" id="opNama" readonly>
+            </div>
           </div>
-          <div class="uf-field">
-            <label for="opNama">Nama Pemohon</label>
-            <input type="text" id="opNama" readonly style="background:#f1f5f9;">
-          </div>
-          <div class="uf-field">
+          <div class="uf-field" style="margin-top:10px;">
             <label for="opNewPhone">Nomor WhatsApp Baru Pemohon *</label>
             <input type="tel" id="opNewPhone" placeholder="Contoh: 08123456789 atau 628123456789">
-            <div style="font-size:11.5px; color:#64748b; margin-top:4px;">Kode OTP verifikasi akan dikirimkan ke nomor ini melalui Fonnte.</div>
+            <div style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Kode OTP verifikasi akan dikirimkan ke nomor ini melalui WhatsApp Fonnte.</div>
           </div>
-          <div class="uf-field">
-            <label for="opReason">Catatan / Alasan Verifikasi SOP *</label>
-            <textarea id="opReason" rows="2" placeholder="Contoh: Pemohon hadir di kantor membawa KTP & KK asli untuk penautan nomor baru." style="width:100%; padding:8px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px;"></textarea>
+          <div class="uf-field" style="margin-top:10px;">
+            <label for="opReason">Catatan / Alasan Verifikasi SOP Fisik *</label>
+            <textarea id="opReason" rows="2" placeholder="Contoh: Pemohon hadir di kantor membawa KTP & KK asli untuk penautan nomor baru."></textarea>
           </div>
         </div>
 
         <div id="opStepOtp" style="display:none;">
-          <div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:12px; margin-bottom:14px; text-align:center;">
-            <div style="font-size:12px; color:#64748b;">Kode OTP telah dikirimkan ke WhatsApp pemohon:</div>
-            <div id="opMaskedPhone" style="font-size:16px; font-weight:800; color:#1D4E89; margin:4px 0;">628xxxxxxxxxx</div>
-            <div style="font-size:11.5px; color:#e11d48;">Mintalah pemohon memeriksa WhatsApp dan menyebutkan 6 digit kode OTP.</div>
+          <div class="op-otp-box">
+            <div style="font-size:12px; color:var(--text-secondary);">Kode OTP telah dikirimkan ke WhatsApp pemohon:</div>
+            <div id="opMaskedPhone" class="op-masked-num">628xxxxxxxxxx</div>
+            <div style="font-size:11.5px; color:var(--danger, #ef4444);">Mintalah pemohon memeriksa WhatsApp dan menyebutkan 6 digit kode OTP.</div>
           </div>
-          <div class="uf-field">
+          <div class="uf-field" style="margin-top:12px;">
             <label for="opOtpInput">Kode OTP 6 Digit dari Pemohon *</label>
-            <input type="tel" id="opOtpInput" placeholder="• • • • • •" maxlength="6" style="text-align:center; font-size:20px; font-weight:800; letter-spacing:6px; font-family:monospace;">
+            <input type="tel" id="opOtpInput" placeholder="• • • • • •" maxlength="6" style="text-align:center; font-size:22px; font-weight:800; letter-spacing:8px; font-family:ui-monospace,Menlo,Consolas,monospace;">
           </div>
         </div>
       </div>
@@ -1884,7 +1889,7 @@
       <div class="uf-actions">
         <button class="neutral-btn" onclick="closeOfficerLinkPhoneModal()">Batal</button>
         <button class="primary-btn" id="btnOpSendOtp" onclick="submitOfficerSendOtp()">Kirim Kode OTP &rarr;</button>
-        <button class="primary-btn" id="btnOpVerifyOtp" onclick="submitOfficerVerifyOtp()" style="display:none; background:#16a34a;">Verifikasi &amp; Tautkan Nomor</button>
+        <button class="primary-btn" id="btnOpVerifyOtp" onclick="submitOfficerVerifyOtp()" style="display:none; background:#10b981; border-color:#059669;">Verifikasi &amp; Tautkan Nomor</button>
       </div>
     </div>
   </div>
