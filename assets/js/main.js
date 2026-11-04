@@ -7,7 +7,7 @@
 'use strict';
 
 // ── Constants & Configuration ────────────────────────────────────
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbyeh0EDk7MfPogC1YsIiLOvXYnBHiOUz8AagjVsdbPSRlR0_2OTRlX3cDQZYL4wlOXe/exec';
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwOHkMM30Pc2z1Hz2fJcL92GuBIQLRN4vJpVGiill8aRzJMJ3ywYDUJkam3oVL0ySno/exec';
 const SESSION_KEY = 'baper_session_v4';
 const STATUS_KEY = 'baper_status_v4';
 const THEME_KEY = 'baper_theme_v4';
