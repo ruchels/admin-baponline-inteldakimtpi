@@ -2308,6 +2308,307 @@ body.light-mode .sl-text h2 {
   color: var(--text-secondary);
 }
 
+/* ── Rekapitulasi & Analitik Interaktif ─────────────────────── */
+.rekap-filter-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 20px;
+  transition: border-color var(--transition-fast);
+}
+
+.rekap-filter-card:hover {
+  border-color: var(--border-strong);
+}
+
+.rfc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.rfc-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.rfc-icon {
+  width: 17px;
+  height: 17px;
+  color: var(--sky-400);
+  stroke-width: 2.2;
+}
+
+.rfc-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.rfc-data-basis-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sky-400);
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.rfc-sub-icon {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.2;
+}
+
+.rfc-count-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.rfc-controls-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) minmax(180px, 240px) 1fr auto;
+  gap: 14px;
+  align-items: flex-end;
+}
+
+.rfc-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rfc-control-group label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rfc-label-icon {
+  width: 13px;
+  height: 13px;
+  color: var(--sky-400);
+  stroke-width: 2.2;
+}
+
+.rfc-select {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-weight: 600;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.rfc-select:focus {
+  outline: none;
+  border-color: var(--sky-500);
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+}
+
+.rfc-action-group {
+  display: flex;
+  align-items: flex-end;
+}
+
+.rfc-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.rfc-reset-btn:hover {
+  background: var(--surface);
+  color: var(--sky-400);
+  border-color: var(--sky-500);
+}
+
+.rfc-btn-icon {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.4;
+}
+
+/* ── Rekap Stat Overview Cards ─────────────────────────────────── */
+.rekap-stat-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.rekap-stat-tile {
+  position: relative;
+  overflow: hidden;
+  cursor: default;
+}
+
+.rekap-stat-tile::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3.5px;
+  background: var(--sky-500);
+}
+
+.tile-total-pemohon::before { background: var(--sky-400); }
+.tile-top-jenis::before      { background: var(--amber-400); }
+.tile-avg-pemohon::before    { background: #10b981; }
+.tile-trend-stat::before     { background: var(--sky-500); }
+
+.rk-text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px !important;
+}
+
+.tile-icon-badge.teal {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+}
+
+.tile-icon-badge.gold {
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--amber-400);
+}
+
+.tile-icon-badge.trend-up {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--green-400);
+}
+
+.tile-icon-badge.trend-down {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--red-400);
+}
+
+.tile-icon-badge.trend-neutral {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-secondary);
+}
+
+/* ── Rekap Charts Grid ─────────────────────────────────────────── */
+.rekap-charts-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.rekap-chart-card {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-height: 380px;
+}
+
+.ach-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ach-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--sky-400);
+  stroke-width: 2.2;
+  flex-shrink: 0;
+}
+
+.ach-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+  font-weight: 500;
+}
+
+.rekap-chart-wrapper {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  min-height: 280px;
+  max-height: 340px;
+}
+
+.rekap-chart-wrapper.doughnut-chart-wrapper {
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rekap-chart-wrapper.line-chart-wrapper {
+  min-height: 260px;
+  max-height: 300px;
+}
+
+.chart-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.empty-icon {
+  width: 32px;
+  height: 32px;
+  stroke-width: 1.8;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
 .recap-analytical-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3720,10 +4021,25 @@ body.light-mode .sl-text h2 {
   .recap-analytical-grid {
     grid-template-columns: 1fr;
   }
+  .rekap-stat-overview-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .rekap-charts-grid {
+    grid-template-columns: 1fr;
+  }
+  .rfc-controls-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 640px) {
   .stat-overview-grid {
+    grid-template-columns: 1fr;
+  }
+  .rekap-stat-overview-grid {
+    grid-template-columns: 1fr;
+  }
+  .rfc-controls-grid {
     grid-template-columns: 1fr;
   }
   .field-grid-three {

@@ -16,6 +16,7 @@
     href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap"
     rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="assets/css/style.css">
 </head>
 
@@ -925,6 +926,184 @@
             <button class="primary-btn excel-btn" onclick="exportExcel()" aria-label="Download rekap Excel">
               <span>Unduh Berkas Excel</span>
             </button>
+          </div>
+        </div>
+
+        <!-- 2. Filter Interaktif Analitik Pemohon -->
+        <div class="rekap-filter-card" role="region" aria-label="Filter Grafik Statistik Pemohon">
+          <div class="rfc-header">
+            <div class="rfc-title">
+              <svg viewBox="0 0 24 24" class="rfc-icon" aria-hidden="true">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+              </svg>
+              <span>Filter Grafik &amp; Statistik Pemohon</span>
+            </div>
+            <div class="rfc-meta">
+              <span class="rfc-data-basis-badge" id="rekapDataBasisBadge" title="Dasar waktu yang digunakan untuk statistik registrasi">
+                <svg viewBox="0 0 24 24" class="rfc-sub-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                Basis: Waktu Registrasi (waktu_daftar)
+              </span>
+              <span class="rfc-count-badge" id="rekapFilterCountBadge">Memuat data pemohon...</span>
+            </div>
+          </div>
+          <div class="rfc-controls-grid">
+            <!-- Filter A: Tahun -->
+            <div class="rfc-control-group">
+              <label for="rekapFilterYear">
+                <svg viewBox="0 0 24 24" class="rfc-label-icon" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                Tahun
+              </label>
+              <select id="rekapFilterYear" class="control-select rfc-select" onchange="onRekapFilterChange()" aria-label="Filter Tahun Pemohon"></select>
+            </div>
+
+            <!-- Filter B: Bulan -->
+            <div class="rfc-control-group">
+              <label for="rekapFilterMonth">
+                <svg viewBox="0 0 24 24" class="rfc-label-icon" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                Bulan
+              </label>
+              <select id="rekapFilterMonth" class="control-select rfc-select" onchange="onRekapFilterChange()" aria-label="Filter Bulan Pemohon">
+                <option value="all">Semua Bulan (Januari - Desember)</option>
+                <option value="1">Januari</option>
+                <option value="2">Februari</option>
+                <option value="3">Maret</option>
+                <option value="4">April</option>
+                <option value="5">Mei</option>
+                <option value="6">Juni</option>
+                <option value="7">Juli</option>
+                <option value="8">Agustus</option>
+                <option value="9">September</option>
+                <option value="10">Oktober</option>
+                <option value="11">November</option>
+                <option value="12">Desember</option>
+              </select>
+            </div>
+
+            <!-- Filter C: Jenis Permohonan -->
+            <div class="rfc-control-group rfc-grow">
+              <label for="rekapFilterJenis">
+                <svg viewBox="0 0 24 24" class="rfc-label-icon" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><line x1="15" y1="8" x2="17" y2="8"></line><line x1="15" y1="12" x2="17" y2="12"></line><line x1="7" y1="16" x2="17" y2="16"></line></svg>
+                Jenis Permohonan
+              </label>
+              <select id="rekapFilterJenis" class="control-select rfc-select" onchange="onRekapFilterChange()" aria-label="Filter Jenis Permohonan"></select>
+            </div>
+
+            <!-- Action: Reset Filter -->
+            <div class="rfc-action-group">
+              <button type="button" class="rfc-reset-btn" id="rekapResetFilterBtn" onclick="resetRekapFilters()" title="Kembalikan semua filter ke kondisi awal" aria-label="Reset Filter Statistik">
+                <svg viewBox="0 0 24 24" class="rfc-btn-icon" aria-hidden="true"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                <span>Reset Filter</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Empat Kartu Ringkasan Statistik -->
+        <div class="rekap-stat-overview-grid" role="region" aria-label="Ringkasan Statistik Analitik">
+          <!-- Kartu 1: Total Pemohon -->
+          <div class="stat-tile rekap-stat-tile tile-total-pemohon">
+            <div class="stat-tile-head">
+              <span class="tile-icon-badge blue">TOTAL PEMOHON</span>
+              <span class="tile-ratio" id="rk-ratio-total">100%</span>
+            </div>
+            <div class="stat-tile-value" id="rk-stat-total">0</div>
+            <div class="stat-tile-label" id="rk-label-total">Total pemohon terdaftar sesuai filter</div>
+          </div>
+
+          <!-- Kartu 2: Jenis Permohonan Terbanyak -->
+          <div class="stat-tile rekap-stat-tile tile-top-jenis">
+            <div class="stat-tile-head">
+              <span class="tile-icon-badge gold">KATEGORI TERBANYAK</span>
+              <span class="tile-ratio" id="rk-ratio-top-jenis">0%</span>
+            </div>
+            <div class="stat-tile-value rk-text-truncate" id="rk-stat-top-jenis">-</div>
+            <div class="stat-tile-label" id="rk-label-top-jenis">0 pemohon</div>
+          </div>
+
+          <!-- Kartu 3: Rata-rata Pemohon -->
+          <div class="stat-tile rekap-stat-tile tile-avg-pemohon">
+            <div class="stat-tile-head">
+              <span class="tile-icon-badge teal">RATA-RATA PEMOHON</span>
+              <span class="tile-ratio" id="rk-ratio-avg">per bulan</span>
+            </div>
+            <div class="stat-tile-value" id="rk-stat-avg">0</div>
+            <div class="stat-tile-label" id="rk-label-avg">Rata-rata pemohon per bulan</div>
+          </div>
+
+          <!-- Kartu 4: Perubahan Statistik -->
+          <div class="stat-tile rekap-stat-tile tile-trend-stat">
+            <div class="stat-tile-head">
+              <span class="tile-icon-badge" id="rk-badge-trend">PERUBAHAN</span>
+              <span class="tile-ratio" id="rk-ratio-trend">vs Periode Lalu</span>
+            </div>
+            <div class="stat-tile-value" id="rk-stat-trend">0%</div>
+            <div class="stat-tile-label" id="rk-label-trend">Dibandingkan periode sebelumnya</div>
+          </div>
+        </div>
+
+        <!-- 4, 5, 6. Grafik Statistik Interaktif (Chart.js) -->
+        <div class="rekap-charts-grid" role="region" aria-label="Visualisasi Grafik Statistik">
+          <!-- 4. Grafik Tren Jumlah Pemohon Bulanan (Bar Chart) -->
+          <div class="analytics-card rekap-chart-card">
+            <div class="analytics-card-header">
+              <div class="ach-title-wrap">
+                <svg viewBox="0 0 24 24" class="ach-icon" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                <div>
+                  <h3>Tren Jumlah Pemohon Bulanan</h3>
+                  <p class="ach-subtitle">Statistik pendaftaran Januari &ndash; Desember</p>
+                </div>
+              </div>
+              <span class="ach-badge" id="rekapBarBadge">Jan &ndash; Des</span>
+            </div>
+            <div class="rekap-chart-wrapper" id="wrapTrenBulanan">
+              <canvas id="chartTrenBulanan"></canvas>
+            </div>
+            <div class="chart-empty-state" id="chartTrenEmpty" style="display: none;">
+              <svg viewBox="0 0 24 24" class="empty-icon"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+              <span>Tidak ada data pemohon yang sesuai filter</span>
+            </div>
+          </div>
+
+          <!-- 5. Grafik Distribusi Jenis Permohonan (Doughnut Chart) -->
+          <div class="analytics-card rekap-chart-card">
+            <div class="analytics-card-header">
+              <div class="ach-title-wrap">
+                <svg viewBox="0 0 24 24" class="ach-icon" aria-hidden="true"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+                <div>
+                  <h3>Distribusi Jenis Permohonan</h3>
+                  <p class="ach-subtitle">Perbandingan proporsi &amp; persentase kategori</p>
+                </div>
+              </div>
+              <span class="ach-badge" id="rekapDoughnutBadge">Kategori BAP</span>
+            </div>
+            <div class="rekap-chart-wrapper doughnut-chart-wrapper" id="wrapDistribusiJenis">
+              <canvas id="chartDistribusiJenis"></canvas>
+            </div>
+            <div class="chart-empty-state" id="chartDistribusiEmpty" style="display: none;">
+              <svg viewBox="0 0 24 24" class="empty-icon"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+              <span>Tidak ada data kategori yang sesuai filter</span>
+            </div>
+          </div>
+
+          <!-- 6. Grafik Perbandingan Jumlah Pemohon (Line Chart) -->
+          <div class="analytics-card rekap-chart-card full-width-card">
+            <div class="analytics-card-header">
+              <div class="ach-title-wrap">
+                <svg viewBox="0 0 24 24" class="ach-icon" aria-hidden="true"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+                <div>
+                  <h3>Perbandingan Jumlah Pemohon Antarbulan</h3>
+                  <p class="ach-subtitle">Tren kurva fluktuasi dan arah pertumbuhan volume pendaftaran</p>
+                </div>
+              </div>
+              <span class="ach-badge" id="rekapLineBadge">Tren Bulanan</span>
+            </div>
+            <div class="rekap-chart-wrapper line-chart-wrapper" id="wrapPerbandinganBulan">
+              <canvas id="chartPerbandinganBulan"></canvas>
+            </div>
+            <div class="chart-empty-state" id="chartPerbandinganEmpty" style="display: none;">
+              <svg viewBox="0 0 24 24" class="empty-icon"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline></svg>
+              <span>Tidak ada data pemohon yang sesuai filter</span>
+            </div>
           </div>
         </div>
 

@@ -1927,8 +1927,814 @@ function printDetail() {
   setTimeout(() => w.print(), 400);
 }
 
+// ── Analitik Grafik Statistik Pemohon (Rekap & Laporan) ────────────
+const REKAP_MONTH_NAMES = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+const REKAP_MONTH_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+  'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+];
+
+let rekapFilterYear = '';
+let rekapFilterMonth = 'all';
+let rekapFilterJenis = 'all';
+
+let chartTrenBulananInstance = null;
+let chartDistribusiJenisInstance = null;
+let chartPerbandinganBulanInstance = null;
+
+// Parser tanggal registrasi (waktu_daftar) & fallback aman (tanggal)
+function parseRegistrationDate(val) {
+  if (!val) return null;
+  const str = String(val).trim();
+  if (!str || str === '-' || str === 'Belum ada') return null;
+
+  // 1. ISO format or YYYY-MM-DD (e.g. "2026-11-04" or "2026-11-04T08:30:00")
+  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoMatch) {
+    const y = parseInt(isoMatch[1], 10);
+    const m = parseInt(isoMatch[2], 10);
+    const d = parseInt(isoMatch[3], 10);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return { year: y, month: m, day: d, date: new Date(y, m - 1, d) };
+    }
+  }
+
+  // 2. Format DD/MM/YYYY or DD-MM-YYYY (e.g. "04/11/2026 11:15 WIB" or "04/11/2026")
+  const dmyMatch = str.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
+  if (dmyMatch) {
+    const d = parseInt(dmyMatch[1], 10);
+    const m = parseInt(dmyMatch[2], 10);
+    const y = parseInt(dmyMatch[3], 10);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return { year: y, month: m, day: d, date: new Date(y, m - 1, d) };
+    }
+  }
+
+  // 3. Format with Indonesian month names (e.g. "04 November 2026", "Senin, 4 Nov 2026 10:00 WIB")
+  const idMonthMap = {
+    januari: 1, jan: 1, februari: 2, feb: 2, maret: 3, mar: 3, april: 4, apr: 4,
+    mei: 5, may: 5, juni: 6, jun: 6, juli: 7, jul: 7, agustus: 8, agu: 8, agt: 8, aug: 8,
+    september: 9, sep: 9, oktober: 10, okt: 10, oct: 10, november: 11, nov: 11, desember: 12, des: 12, dec: 12
+  };
+  const idMatch = str.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  if (idMatch) {
+    const d = parseInt(idMatch[1], 10);
+    const mStr = idMatch[2].toLowerCase();
+    const y = parseInt(idMatch[3], 10);
+    const m = idMonthMap[mStr];
+    if (m && d >= 1 && d <= 31) {
+      return { year: y, month: m, day: d, date: new Date(y, m - 1, d) };
+    }
+  }
+
+  // 4. Clean and parse Date
+  const cleaned = str.replace(/\s*WIB$/i, '').trim();
+  const parsed = new Date(cleaned);
+  if (!isNaN(parsed.getTime())) {
+    return {
+      year: parsed.getFullYear(),
+      month: parsed.getMonth() + 1,
+      day: parsed.getDate(),
+      date: parsed
+    };
+  }
+  return null;
+}
+
+// Deduplikasi pemohon agar satu pemohon tidak dihitung ganda
+function getDeduplicatedApplicants(dataset) {
+  if (!Array.isArray(dataset)) return [];
+  const seen = new Set();
+  const deduped = [];
+  dataset.forEach(r => {
+    const regNo = (r.reg || r.no_registrasi || '').trim();
+    const nik = (r.nik || '').trim();
+    const nama = (r.nama || '').trim();
+    const tgl = (r.tanggal || '').trim();
+    const hp = (r.hp || '').trim();
+    const key = regNo || (nik && tgl ? `${nik}_${tgl}_${r.jam || ''}` : (r._key || `${nama}_${tgl}_${hp}`));
+
+    if (key) {
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push(r);
+      }
+    } else {
+      deduped.push(r);
+    }
+  });
+  return deduped;
+}
+
+// Ekstraksi info tanggal pemohon: memprioritaskan waktu_daftar sebagai waktu registrasi sah
+function getRekapApplicantDateInfo(r) {
+  if (!r) return null;
+  const regParsed = parseRegistrationDate(r.waktu_daftar);
+  if (regParsed) {
+    return { ...regParsed, source: 'waktu_daftar' };
+  }
+  // Fallback ke jadwal kedatangan (tanggal) bila waktu_daftar kosong/invalid
+  const arrivalParsed = parseRegistrationDate(r.tanggal);
+  if (arrivalParsed) {
+    return { ...arrivalParsed, source: 'tanggal' };
+  }
+  return null;
+}
+
+// Inisialisasi dan populasi opsi filter analitik
+function initRekapFilters(applicants) {
+  const ySel = $('rekapFilterYear');
+  const mSel = $('rekapFilterMonth');
+  const jSel = $('rekapFilterJenis');
+  if (!ySel || !mSel || !jSel) return;
+
+  // 1. Ekstraksi Tahun
+  const yearSet = new Set();
+  applicants.forEach(r => {
+    const dInfo = getRekapApplicantDateInfo(r);
+    if (dInfo && dInfo.year) yearSet.add(dInfo.year);
+  });
+  const availableYears = [...yearSet].sort((a, b) => b - a);
+  if (availableYears.length === 0) {
+    availableYears.push(new Date().getFullYear());
+  }
+
+  const prevYear = rekapFilterYear || ySel.value;
+  ySel.innerHTML = availableYears.map(y => `<option value="${y}">Tahun ${y}</option>`).join('');
+
+  if (prevYear && availableYears.includes(parseInt(prevYear, 10))) {
+    rekapFilterYear = String(prevYear);
+  } else {
+    rekapFilterYear = String(availableYears[0]); // Default ke tahun terbaru yang memiliki data
+  }
+  ySel.value = rekapFilterYear;
+
+  // 2. Bulan
+  if (rekapFilterMonth) mSel.value = rekapFilterMonth;
+  else rekapFilterMonth = mSel.value || 'all';
+
+  // 3. Jenis Permohonan dinamis dari data aktual
+  const jenisSet = new Set();
+  applicants.forEach(r => {
+    const j = (r.jenis_permohonan || '').trim();
+    if (j) jenisSet.add(j);
+  });
+  const availableJenis = [...jenisSet].sort();
+  const prevJenis = rekapFilterJenis || jSel.value;
+
+  jSel.innerHTML = '<option value="all">Semua Jenis Permohonan</option>' +
+    availableJenis.map(j => `<option value="${escHtml(j)}">${escHtml(j)}</option>`).join('');
+
+  if (prevJenis && (prevJenis === 'all' || availableJenis.includes(prevJenis))) {
+    rekapFilterJenis = prevJenis;
+  } else {
+    rekapFilterJenis = 'all';
+  }
+  jSel.value = rekapFilterJenis;
+}
+
+function onRekapFilterChange() {
+  const ySel = $('rekapFilterYear');
+  const mSel = $('rekapFilterMonth');
+  const jSel = $('rekapFilterJenis');
+  if (ySel) rekapFilterYear = ySel.value;
+  if (mSel) rekapFilterMonth = mSel.value;
+  if (jSel) rekapFilterJenis = jSel.value;
+  updateRekapAnalyticsAndCharts();
+}
+
+function resetRekapFilters() {
+  const deduped = getDeduplicatedApplicants(allData);
+  const yearSet = new Set();
+  deduped.forEach(r => {
+    const dInfo = getRekapApplicantDateInfo(r);
+    if (dInfo && dInfo.year) yearSet.add(dInfo.year);
+  });
+  const availableYears = [...yearSet].sort((a, b) => b - a);
+  rekapFilterYear = availableYears.length > 0 ? String(availableYears[0]) : String(new Date().getFullYear());
+  rekapFilterMonth = 'all';
+  rekapFilterJenis = 'all';
+
+  const ySel = $('rekapFilterYear');
+  const mSel = $('rekapFilterMonth');
+  const jSel = $('rekapFilterJenis');
+  if (ySel) ySel.value = rekapFilterYear;
+  if (mSel) mSel.value = rekapFilterMonth;
+  if (jSel) jSel.value = rekapFilterJenis;
+
+  updateRekapAnalyticsAndCharts();
+}
+
+// Konfigurasi tema Chart.js sesuai desain Navy SIPALARUS
+function getChartThemeDefaults() {
+  return {
+    color: '#94a3b8',
+    font: {
+      family: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+      size: 11
+    },
+    gridColor: 'rgba(148, 163, 184, 0.08)',
+    borderColor: 'rgba(148, 163, 184, 0.15)'
+  };
+}
+
+// Pembaruan Statistik Ringkasan dan Grafik Chart.js
+function updateRekapAnalyticsAndCharts() {
+  const deduped = getDeduplicatedApplicants(allData);
+  const activeY = parseInt(rekapFilterYear, 10);
+  const activeM = rekapFilterMonth === 'all' ? null : parseInt(rekapFilterMonth, 10);
+  const activeJ = rekapFilterJenis;
+
+  // Filter pemohon sesuai ketiga filter
+  const filtered = deduped.filter(r => {
+    const dInfo = getRekapApplicantDateInfo(r);
+    if (!dInfo) return false;
+    if (activeY && dInfo.year !== activeY) return false;
+    if (activeM && dInfo.month !== activeM) return false;
+    if (activeJ !== 'all') {
+      const j = (r.jenis_permohonan || '').trim();
+      if (j !== activeJ) return false;
+    }
+    return true;
+  });
+
+  // Pemohon dalam tahun aktif (untuk grafik tren & perbandingan bulanan)
+  const yearApplicants = deduped.filter(r => {
+    const dInfo = getRekapApplicantDateInfo(r);
+    if (!dInfo || dInfo.year !== activeY) return false;
+    if (activeJ !== 'all') {
+      const j = (r.jenis_permohonan || '').trim();
+      if (j !== activeJ) return false;
+    }
+    return true;
+  });
+
+  // Hitung berapa record yang menggunakan fallback tanggal kedatangan
+  let fallbackCount = 0;
+  filtered.forEach(r => {
+    const dInfo = getRekapApplicantDateInfo(r);
+    if (dInfo && dInfo.source === 'tanggal') fallbackCount++;
+  });
+
+  // Update badge basis data
+  const dataBasisBadge = $('rekapDataBasisBadge');
+  if (dataBasisBadge) {
+    if (fallbackCount > 0) {
+      dataBasisBadge.innerHTML = `
+        <svg viewBox="0 0 24 24" class="rfc-sub-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        Basis: Waktu Registrasi (${filtered.length - fallbackCount}) + Jadwal Kedatangan (${fallbackCount})
+      `;
+    } else {
+      dataBasisBadge.innerHTML = `
+        <svg viewBox="0 0 24 24" class="rfc-sub-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        Basis: Waktu Registrasi (waktu_daftar)
+      `;
+    }
+  }
+
+  // Update counter badge
+  const countBadge = $('rekapFilterCountBadge');
+  if (countBadge) {
+    countBadge.textContent = `${filtered.length} dari ${deduped.length} Pemohon`;
+  }
+
+  // ── Kartu Ringkasan 1: Total Pemohon ──────────────────────────
+  const rkStatTotal = $('rk-stat-total');
+  const rkRatioTotal = $('rk-ratio-total');
+  const rkLabelTotal = $('rk-label-total');
+  if (rkStatTotal) rkStatTotal.textContent = filtered.length;
+  if (rkRatioTotal) {
+    const pct = deduped.length > 0 ? Math.round((filtered.length / deduped.length) * 100) : 0;
+    rkRatioTotal.textContent = `${pct}% dari total`;
+  }
+  if (rkLabelTotal) {
+    let scopeTxt = `Tahun ${activeY}`;
+    if (activeM) scopeTxt += `, Bulan ${REKAP_MONTH_NAMES[activeM - 1]}`;
+    if (activeJ !== 'all') scopeTxt += ` (${activeJ})`;
+    rkLabelTotal.textContent = `Total pemohon terfilter (${scopeTxt})`;
+  }
+
+  // ── Kartu Ringkasan 2: Jenis Permohonan Terbanyak ──────────────
+  const jenisCountMap = {};
+  filtered.forEach(r => {
+    const k = (r.jenis_permohonan || '').trim() || 'Lainnya';
+    jenisCountMap[k] = (jenisCountMap[k] || 0) + 1;
+  });
+  let topJenisName = '-';
+  let topJenisCount = 0;
+  Object.entries(jenisCountMap).forEach(([k, v]) => {
+    if (v > topJenisCount) {
+      topJenisCount = v;
+      topJenisName = k;
+    }
+  });
+
+  const rkStatTopJenis = $('rk-stat-top-jenis');
+  const rkLabelTopJenis = $('rk-label-top-jenis');
+  const rkRatioTopJenis = $('rk-ratio-top-jenis');
+  if (rkStatTopJenis) {
+    rkStatTopJenis.textContent = topJenisName;
+    rkStatTopJenis.title = topJenisName;
+  }
+  if (rkLabelTopJenis) {
+    rkLabelTopJenis.textContent = topJenisCount > 0 ? `${topJenisCount} pemohon terdaftar` : 'Tidak ada permohonan';
+  }
+  if (rkRatioTopJenis) {
+    const topPct = filtered.length > 0 ? Math.round((topJenisCount / filtered.length) * 100) : 0;
+    rkRatioTopJenis.textContent = `${topPct}%`;
+  }
+
+  // ── Kartu Ringkasan 3: Rata-rata Pemohon ───────────────────────
+  const rkStatAvg = $('rk-stat-avg');
+  const rkRatioAvg = $('rk-ratio-avg');
+  const rkLabelAvg = $('rk-label-avg');
+  if (rkStatAvg) {
+    if (!activeM) {
+      // Rata-rata bulanan
+      const avgMonthly = (filtered.length / 12).toFixed(1);
+      rkStatAvg.textContent = avgMonthly;
+      if (rkRatioAvg) rkRatioAvg.textContent = 'per bulan';
+      if (rkLabelAvg) rkLabelAvg.textContent = `Rata-rata bulanan tahun ${activeY}`;
+    } else {
+      // Rata-rata harian pada bulan terpilih
+      const daysInMonth = new Date(activeY, activeM, 0).getDate();
+      const avgDaily = (filtered.length / daysInMonth).toFixed(1);
+      rkStatAvg.textContent = avgDaily;
+      if (rkRatioAvg) rkRatioAvg.textContent = 'per hari';
+      if (rkLabelAvg) rkLabelAvg.textContent = `${filtered.length} pemohon dlm ${daysInMonth} hari (${REKAP_MONTH_SHORT[activeM - 1]})`;
+    }
+  }
+
+  // ── Kartu Ringkasan 4: Perubahan Statistik vs Periode Sebelumnya
+  const rkStatTrend = $('rk-stat-trend');
+  const rkBadgeTrend = $('rk-badge-trend');
+  const rkRatioTrend = $('rk-ratio-trend');
+  const rkLabelTrend = $('rk-label-trend');
+
+  let prevCount = 0;
+  let currCount = filtered.length;
+  let prevPeriodLabel = '';
+
+  if (activeM) {
+    // Bandingkan dengan bulan sebelumnya
+    let prevY = activeY;
+    let prevM = activeM - 1;
+    if (prevM === 0) {
+      prevM = 12;
+      prevY = activeY - 1;
+    }
+    prevPeriodLabel = `Bulan ${REKAP_MONTH_SHORT[prevM - 1]} ${prevY}`;
+    prevCount = deduped.filter(r => {
+      const dInfo = getRekapApplicantDateInfo(r);
+      if (!dInfo || dInfo.year !== prevY || dInfo.month !== prevM) return false;
+      if (activeJ !== 'all') {
+        const j = (r.jenis_permohonan || '').trim();
+        if (j !== activeJ) return false;
+      }
+      return true;
+    }).length;
+  } else {
+    // Bandingkan dengan tahun sebelumnya
+    const prevY = activeY - 1;
+    prevPeriodLabel = `Tahun ${prevY}`;
+    prevCount = deduped.filter(r => {
+      const dInfo = getRekapApplicantDateInfo(r);
+      if (!dInfo || dInfo.year !== prevY) return false;
+      if (activeJ !== 'all') {
+        const j = (r.jenis_permohonan || '').trim();
+        if (j !== activeJ) return false;
+      }
+      return true;
+    }).length;
+  }
+
+  if (rkRatioTrend) rkRatioTrend.textContent = `vs ${prevPeriodLabel}`;
+  if (rkStatTrend && rkBadgeTrend && rkLabelTrend) {
+    rkBadgeTrend.className = 'tile-icon-badge';
+    if (prevCount === 0) {
+      if (currCount > 0) {
+        rkStatTrend.textContent = `+100%`;
+        rkBadgeTrend.classList.add('trend-up');
+        rkBadgeTrend.textContent = 'AWAL';
+        rkLabelTrend.textContent = `+${currCount} pemohon (periode baru)`;
+      } else {
+        rkStatTrend.textContent = `0%`;
+        rkBadgeTrend.classList.add('trend-neutral');
+        rkBadgeTrend.textContent = 'STABIL';
+        rkLabelTrend.textContent = `Nol pemohon pada kedua periode`;
+      }
+    } else {
+      const diff = currCount - prevCount;
+      const pct = Math.round((diff / prevCount) * 100);
+      if (diff > 0) {
+        rkStatTrend.textContent = `+${pct}%`;
+        rkBadgeTrend.classList.add('trend-up');
+        rkBadgeTrend.textContent = 'NAIK';
+        rkLabelTrend.textContent = `+${diff} pemohon vs periode lalu (${prevCount})`;
+      } else if (diff < 0) {
+        rkStatTrend.textContent = `${pct}%`;
+        rkBadgeTrend.classList.add('trend-down');
+        rkBadgeTrend.textContent = 'TURUN';
+        rkLabelTrend.textContent = `${diff} pemohon vs periode lalu (${prevCount})`;
+      } else {
+        rkStatTrend.textContent = `0%`;
+        rkBadgeTrend.classList.add('trend-neutral');
+        rkBadgeTrend.textContent = 'STABIL';
+        rkLabelTrend.textContent = `Sama dengan periode lalu (${prevCount} pemohon)`;
+      }
+    }
+  }
+
+  // ── Render 3 Grafik Chart.js ──────────────────────────────────
+  renderTrenBulananChart(yearApplicants, activeM);
+  renderDistribusiJenisChart(filtered);
+  renderPerbandinganBulanChart(yearApplicants, activeM);
+}
+
+// ── Grafik 1: Tren Jumlah Pemohon Bulanan (Bar Chart) ─────────────
+function renderTrenBulananChart(yearApplicants, activeMonth) {
+  const canvas = $('chartTrenBulanan');
+  const wrapper = $('wrapTrenBulanan');
+  const emptyState = $('chartTrenEmpty');
+  const badge = $('rekapBarBadge');
+  if (!canvas) return;
+
+  if (typeof Chart === 'undefined') {
+    if (wrapper) wrapper.innerHTML = '<div class="chart-empty-state">Library Chart.js sedang dimuat...</div>';
+    return;
+  }
+
+  if (badge) {
+    badge.textContent = activeMonth ? `${REKAP_MONTH_NAMES[activeMonth - 1]} ${rekapFilterYear}` : `Tahun ${rekapFilterYear}`;
+  }
+
+  // Hitung jumlah pendaftar per bulan (Jan - Des)
+  const monthlyCounts = Array(12).fill(0);
+  yearApplicants.forEach(r => {
+    const dInfo = getRekapApplicantDateInfo(r);
+    if (dInfo && dInfo.month >= 1 && dInfo.month <= 12) {
+      monthlyCounts[dInfo.month - 1]++;
+    }
+  });
+
+  const totalInYear = monthlyCounts.reduce((a, b) => a + b, 0);
+
+  if (totalInYear === 0) {
+    if (wrapper) wrapper.style.display = 'none';
+    if (emptyState) emptyState.style.display = 'flex';
+    if (chartTrenBulananInstance) {
+      chartTrenBulananInstance.destroy();
+      chartTrenBulananInstance = null;
+    }
+    return;
+  } else {
+    if (wrapper) wrapper.style.display = 'block';
+    if (emptyState) emptyState.style.display = 'none';
+  }
+
+  // Pewarnaan bar: bila ada bulan terpilih, sorot bulan tersebut
+  const backgroundColors = monthlyCounts.map((_, i) => {
+    if (activeMonth) {
+      return (i + 1 === activeMonth) ? '#0284c7' : 'rgba(2, 132, 199, 0.22)';
+    }
+    return '#0284c7';
+  });
+  const borderColors = monthlyCounts.map((_, i) => {
+    if (activeMonth) {
+      return (i + 1 === activeMonth) ? '#38bdf8' : 'rgba(56, 189, 248, 0.3)';
+    }
+    return '#38bdf8';
+  });
+
+  if (chartTrenBulananInstance) {
+    chartTrenBulananInstance.destroy();
+    chartTrenBulananInstance = null;
+  }
+
+  const theme = getChartThemeDefaults();
+  const ctx = canvas.getContext('2d');
+
+  chartTrenBulananInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: REKAP_MONTH_SHORT,
+      datasets: [{
+        label: 'Jumlah Pemohon',
+        data: monthlyCounts,
+        backgroundColor: backgroundColors,
+        borderColor: borderColors,
+        borderWidth: 1.5,
+        borderRadius: 6,
+        borderSkipped: false,
+        maxBarThickness: 38
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: {
+        duration: 650,
+        easing: 'easeOutQuart'
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0b1424',
+          titleColor: '#f8fafc',
+          bodyColor: '#cbd5e1',
+          borderColor: '#192d4f',
+          borderWidth: 1,
+          padding: 10,
+          boxPadding: 4,
+          callbacks: {
+            title: function(items) {
+              const idx = items[0].dataIndex;
+              return `${REKAP_MONTH_NAMES[idx]} ${rekapFilterYear}`;
+            },
+            label: function(item) {
+              const val = item.parsed.y || 0;
+              const pct = totalInYear > 0 ? Math.round((val / totalInYear) * 100) : 0;
+              return ` ${val} pemohon (${pct}% dari tahun ${rekapFilterYear})`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: theme.color, font: theme.font }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: theme.gridColor },
+          ticks: {
+            color: theme.color,
+            font: theme.font,
+            precision: 0,
+            stepSize: 1
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── Grafik 2: Distribusi Jenis Permohonan (Doughnut Chart) ────────
+function renderDistribusiJenisChart(filteredApplicants) {
+  const canvas = $('chartDistribusiJenis');
+  const wrapper = $('wrapDistribusiJenis');
+  const emptyState = $('chartDistribusiEmpty');
+  const badge = $('rekapDoughnutBadge');
+  if (!canvas) return;
+
+  if (typeof Chart === 'undefined') {
+    if (wrapper) wrapper.innerHTML = '<div class="chart-empty-state">Library Chart.js sedang dimuat...</div>';
+    return;
+  }
+
+  const categoryMap = {};
+  filteredApplicants.forEach(r => {
+    const k = (r.jenis_permohonan || '').trim() || 'Lainnya';
+    categoryMap[k] = (categoryMap[k] || 0) + 1;
+  });
+
+  const labels = Object.keys(categoryMap);
+  const data = Object.values(categoryMap);
+  const total = data.reduce((a, b) => a + b, 0);
+
+  if (badge) {
+    badge.textContent = `${labels.length} Kategori`;
+  }
+
+  if (total === 0 || labels.length === 0) {
+    if (wrapper) wrapper.style.display = 'none';
+    if (emptyState) emptyState.style.display = 'flex';
+    if (chartDistribusiJenisInstance) {
+      chartDistribusiJenisInstance.destroy();
+      chartDistribusiJenisInstance = null;
+    }
+    return;
+  } else {
+    if (wrapper) wrapper.style.display = 'flex';
+    if (emptyState) emptyState.style.display = 'none';
+  }
+
+  const palette = [
+    '#0284c7', // Sky Blue primary
+    '#38bdf8', // Light Sky
+    '#10b981', // Emerald Green
+    '#f59e0b', // Amber / Gold
+    '#8b5cf6', // Violet
+    '#ec4899', // Pink
+    '#06b6d4', // Cyan
+    '#f97316'  // Orange
+  ];
+  const bgColors = labels.map((_, i) => palette[i % palette.length]);
+
+  if (chartDistribusiJenisInstance) {
+    chartDistribusiJenisInstance.destroy();
+    chartDistribusiJenisInstance = null;
+  }
+
+  const theme = getChartThemeDefaults();
+  const ctx = canvas.getContext('2d');
+
+  chartDistribusiJenisInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: bgColors,
+        borderColor: '#0b1424',
+        borderWidth: 2,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '66%',
+      animation: {
+        duration: 650,
+        easing: 'easeOutQuart'
+      },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: theme.color,
+            font: theme.font,
+            padding: 14,
+            boxWidth: 12,
+            usePointStyle: true
+          }
+        },
+        tooltip: {
+          backgroundColor: '#0b1424',
+          titleColor: '#f8fafc',
+          bodyColor: '#cbd5e1',
+          borderColor: '#192d4f',
+          borderWidth: 1,
+          padding: 10,
+          boxPadding: 4,
+          callbacks: {
+            label: function(item) {
+              const val = item.parsed || 0;
+              const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+              return ` ${item.label}: ${val} pemohon (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── Grafik 3: Perbandingan Jumlah Pemohon (Line Chart) ────────────
+function renderPerbandinganBulanChart(yearApplicants, activeMonth) {
+  const canvas = $('chartPerbandinganBulan');
+  const wrapper = $('wrapPerbandinganBulan');
+  const emptyState = $('chartPerbandinganEmpty');
+  const badge = $('rekapLineBadge');
+  if (!canvas) return;
+
+  if (typeof Chart === 'undefined') {
+    if (wrapper) wrapper.innerHTML = '<div class="chart-empty-state">Library Chart.js sedang dimuat...</div>';
+    return;
+  }
+
+  const monthlyCounts = Array(12).fill(0);
+  yearApplicants.forEach(r => {
+    const dInfo = getRekapApplicantDateInfo(r);
+    if (dInfo && dInfo.month >= 1 && dInfo.month <= 12) {
+      monthlyCounts[dInfo.month - 1]++;
+    }
+  });
+
+  const totalInYear = monthlyCounts.reduce((a, b) => a + b, 0);
+
+  if (badge) {
+    badge.textContent = `Tren Dinamis ${rekapFilterYear}`;
+  }
+
+  if (totalInYear === 0) {
+    if (wrapper) wrapper.style.display = 'none';
+    if (emptyState) emptyState.style.display = 'flex';
+    if (chartPerbandinganBulanInstance) {
+      chartPerbandinganBulanInstance.destroy();
+      chartPerbandinganBulanInstance = null;
+    }
+    return;
+  } else {
+    if (wrapper) wrapper.style.display = 'block';
+    if (emptyState) emptyState.style.display = 'none';
+  }
+
+  if (chartPerbandinganBulanInstance) {
+    chartPerbandinganBulanInstance.destroy();
+    chartPerbandinganBulanInstance = null;
+  }
+
+  const theme = getChartThemeDefaults();
+  const ctx = canvas.getContext('2d');
+
+  // Gradient fill di bawah kurva garis
+  let gradientFill = 'rgba(56, 189, 248, 0.12)';
+  try {
+    const grad = ctx.createLinearGradient(0, 0, 0, 260);
+    grad.addColorStop(0, 'rgba(56, 189, 248, 0.28)');
+    grad.addColorStop(1, 'rgba(56, 189, 248, 0.01)');
+    gradientFill = grad;
+  } catch (e) {}
+
+  chartPerbandinganBulanInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: REKAP_MONTH_SHORT,
+      datasets: [{
+        label: 'Jumlah Pemohon',
+        data: monthlyCounts,
+        borderColor: '#38bdf8',
+        backgroundColor: gradientFill,
+        fill: true,
+        tension: 0.35,
+        borderWidth: 2.5,
+        pointBackgroundColor: '#0284c7',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 1.5,
+        pointRadius: 4,
+        pointHoverRadius: 7,
+        pointHoverBackgroundColor: '#38bdf8',
+        pointHoverBorderColor: '#ffffff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: {
+        duration: 700,
+        easing: 'easeOutQuart'
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0b1424',
+          titleColor: '#f8fafc',
+          bodyColor: '#cbd5e1',
+          borderColor: '#192d4f',
+          borderWidth: 1,
+          padding: 10,
+          boxPadding: 4,
+          callbacks: {
+            title: function(items) {
+              const idx = items[0].dataIndex;
+              return `${REKAP_MONTH_NAMES[idx]} ${rekapFilterYear}`;
+            },
+            label: function(item) {
+              const idx = item.dataIndex;
+              const val = item.parsed.y || 0;
+              if (idx === 0) {
+                return ` Volume: ${val} pemohon`;
+              }
+              const prev = monthlyCounts[idx - 1] || 0;
+              const diff = val - prev;
+              const diffStr = diff > 0 ? ` (+${diff} vs ${REKAP_MONTH_SHORT[idx - 1]})` :
+                              (diff < 0 ? ` (${diff} vs ${REKAP_MONTH_SHORT[idx - 1]})` : ` (Tetap)`);
+              return ` Volume: ${val} pemohon${diffStr}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: theme.gridColor },
+          ticks: { color: theme.color, font: theme.font }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: theme.gridColor },
+          ticks: {
+            color: theme.color,
+            font: theme.font,
+            precision: 0,
+            stepSize: 1
+          }
+        }
+      }
+    }
+  });
+}
+
 // ── Rekapitulasi & Statistik View ────────────────────────────────
 function renderRecap() {
+  const deduped = getDeduplicatedApplicants(allData);
+  initRekapFilters(deduped);
+  updateRekapAnalyticsAndCharts();
+
   const total = allData.length || 1;
 
   const statusData = [
@@ -2238,6 +3044,14 @@ function navTo(page, el) {
   if (page === 'users') loadUsers(false, usersLoaded);
   if (page === 'jadwal') initScheduleView();
   if (page === 'audit') loadAuditLogs(false, auditLoaded);
+  if (page === 'rekap') {
+    renderRecap();
+    setTimeout(() => {
+      if (chartTrenBulananInstance) chartTrenBulananInstance.resize();
+      if (chartDistribusiJenisInstance) chartDistribusiJenisInstance.resize();
+      if (chartPerbandinganBulanInstance) chartPerbandinganBulanInstance.resize();
+    }, 120);
+  }
 
   // Track navigation history (skip if navigating via back/forward)
   if (!navHistoryNavigating) {
