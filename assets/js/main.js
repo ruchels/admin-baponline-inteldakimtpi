@@ -7,7 +7,7 @@
 'use strict';
 
 // ── Constants & Configuration ────────────────────────────────────
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbx6LGyjByQDSpr-yfEGAK2UQWQo_h73tvJ0PShCSa7k14y4ZUXK7embOnzpU3zSNMPD/exec';
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycby58EKobnIAS1J7YTfZdzIhqjYVA6etB1pf6TzUeB6dW1iL7RrS8BRkfODfby-C1z7M/exec';
 const SESSION_KEY = 'baper_session_v4';
 const STATUS_KEY = 'baper_status_v4';
 const THEME_KEY = 'baper_theme_v4';
@@ -5022,7 +5022,7 @@ function renderVisitorBreakdowns() {
       // Ambil max 6 teratas
       const topPaths = paths.slice(0, 6);
       const maxViews = Math.max(...topPaths.map(p => p.views || 0), 1);
-      
+
       pathsWrap.innerHTML = topPaths.map(item => {
         const v = parseInt(item.views, 10) || 0;
         const pct = Math.min(100, Math.round((v / maxViews) * 100));
