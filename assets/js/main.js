@@ -565,7 +565,10 @@ async function loadData(manual = false) {
   if (btn) btn.classList.add('spinning');
 
   try {
-    const res = await fetch(`${SHEET_URL}?action=get&token=${encodeURIComponent(getAdminToken())}`, { cache: 'no-store' });
+    const token = getAdminToken();
+    if (!token) return;
+
+    const res = await fetch(`${SHEET_URL}?action=get&token=${encodeURIComponent(token)}`, { cache: 'no-store' });
     const json = await res.json();
     if (json && json.needLogin) { handleSessionExpired(); return; }
     const raw = Array.isArray(json) ? json : (json.data || []);
@@ -613,11 +616,11 @@ async function loadData(manual = false) {
       playAlertChime();
       showToast('error', 'Gagal menyinkronkan data dengan server.');
     }
+  } finally {
+    if (btn) btn.classList.remove('spinning');
+    renderAll();
+    if (typeof loadVisitorStats === 'function') loadVisitorStats(false);
   }
-
-  if (btn) btn.classList.remove('spinning');
-  renderAll();
-  if (typeof loadVisitorStats === 'function') loadVisitorStats(false);
 }
 
 // ── Month & Year Filtering Options ───────────────────────────────
@@ -3019,8 +3022,25 @@ const PAGE_META = {
   jadwal: ['Manajemen Jadwal Kedatangan', 'Pengaturan Hari Libur & Sesi Kedatangan'],
   users: ['Manajemen Akun Pemohon', 'Pusat Kontrol Akun Pengguna Terdaftar'],
   rekap: ['Rekap & Laporan', 'Statistik Pelayanan Keimigrasian'],
+  visitor: ['Statistik Pengunjung Website', 'Monitoring Kunjungan & Page Views Website sipalarus.com'],
   audit: ['Pusat Audit Log & Keamanan', 'Jejak Riwayat Aktivitas Seluruh Sistem'],
 };
+
+// ── Global Synchronizer ─────────────────────────────────────────
+function handleGlobalRefresh(manual = true) {
+  loadData(manual);
+  const activeNav = document.querySelector('.nav-item.active');
+  const activePage = activeNav ? activeNav.getAttribute('data-page') : '';
+  if (activePage === 'visitor' && typeof loadVisitorStats === 'function') {
+    loadVisitorStats(manual);
+  } else if (activePage === 'jadwal' && typeof refreshJadwalSettings === 'function') {
+    refreshJadwalSettings(manual);
+  } else if (activePage === 'users' && typeof loadUsers === 'function') {
+    loadUsers(manual, true);
+  } else if (activePage === 'audit' && typeof loadAuditLogs === 'function') {
+    loadAuditLogs(manual, true);
+  }
+}
 
 // ── Navigation History ──────────────────────────────────────────
 let navHistory = ['dashboard'];
@@ -3046,6 +3066,12 @@ function navTo(page, el) {
   if (page === 'users') loadUsers(false, usersLoaded);
   if (page === 'jadwal') initScheduleView();
   if (page === 'audit') loadAuditLogs(false, auditLoaded);
+  if (page === 'visitor') {
+    loadVisitorStats(false);
+    setTimeout(() => {
+      if (visitorChartInstance) visitorChartInstance.resize();
+    }, 100);
+  }
   if (page === 'rekap') {
     renderRecap();
     setTimeout(() => {
@@ -3189,7 +3215,7 @@ document.addEventListener('keydown', e => {
     if (e.key === '?') {
       openShortcutsModal();
     } else if (e.key === 'r' || e.key === 'R') {
-      loadData(true);
+      handleGlobalRefresh(true);
     } else if (e.key === '1') {
       navTo('dashboard', document.querySelector('[data-page=dashboard]'));
     } else if (e.key === '2') {
@@ -3197,9 +3223,15 @@ document.addEventListener('keydown', e => {
     } else if (e.key === '3') {
       navTo('reschedule', document.querySelector('[data-page=reschedule]'));
     } else if (e.key === '4') {
-      navTo('users', document.querySelector('[data-page=users]'));
+      navTo('jadwal', document.querySelector('[data-page=jadwal]'));
     } else if (e.key === '5') {
+      navTo('users', document.querySelector('[data-page=users]'));
+    } else if (e.key === '6') {
       navTo('rekap', document.querySelector('[data-page=rekap]'));
+    } else if (e.key === '7') {
+      navTo('visitor', document.querySelector('[data-page=visitor]'));
+    } else if (e.key === '8') {
+      navTo('audit', document.querySelector('[data-page=audit]'));
     }
   }
 });
@@ -4871,10 +4903,16 @@ let visitorSearchKeyword = '';
  */
 async function loadVisitorStats(manual = false) {
   const btn = $('btnRefreshVisitor');
-  if (btn) btn.classList.add('spinning');
+  if (btn) {
+    btn.classList.add('spinning');
+    btn.disabled = true;
+  }
 
   try {
-    const res = await fetch(`${SHEET_URL}?action=getVisitorStats&token=${encodeURIComponent(getAdminToken())}`, {
+    const token = getAdminToken();
+    if (!token) return;
+
+    const res = await fetch(`${SHEET_URL}?action=getVisitorStats&token=${encodeURIComponent(token)}`, {
       cache: 'no-store'
     });
     const json = await res.json();
@@ -4926,7 +4964,10 @@ async function loadVisitorStats(manual = false) {
       showToast('error', 'Koneksi ke endpoint analitik terganggu.');
     }
   } finally {
-    if (btn) btn.classList.remove('spinning');
+    if (btn) {
+      btn.classList.remove('spinning');
+      btn.disabled = false;
+    }
   }
 }
 
@@ -5420,20 +5461,8 @@ function exportVisitorHistoryCSV() {
 }
 
 /**
- * Navigasi halus ke bagian Statistik Pengunjung
+ * Navigasi ke tab Statistik Pengunjung
  */
 function scrollToVisitorStats(navEl) {
-  navTo('dashboard', document.querySelector('.nav-item[data-page="dashboard"]'));
-  if (navEl) {
-    $$('.nav-item').forEach(n => n.classList.remove('active'));
-    navEl.classList.add('active');
-  }
-  setTimeout(() => {
-    const sec = $('sec-visitor-stats');
-    if (sec) {
-      sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      sec.classList.add('visitor-section-highlight');
-      setTimeout(() => sec.classList.remove('visitor-section-highlight'), 1800);
-    }
-  }, 100);
+  navTo('visitor', navEl || document.querySelector('.nav-item[data-page="visitor"]'));
 }
