@@ -4978,7 +4978,71 @@ function renderVisitorSection() {
   if (!visitorStatsData) return;
   renderVisitorStatCards();
   applyVisitorFilterAndRenderChart();
+  renderVisitorBreakdowns();
   renderVisitorTable();
+}
+
+/**
+ * Render visual breakdown perangkat dan halaman teratas
+ */
+function renderVisitorBreakdowns() {
+  if (!visitorStatsData) return;
+
+  // 1. Distribusi Perangkat
+  const dev = visitorStatsData.devices || { mobile: 0, desktop: 0, tablet: 0 };
+  const mob = parseInt(dev.mobile, 10) || 0;
+  const dsk = parseInt(dev.desktop, 10) || 0;
+  const tab = parseInt(dev.tablet, 10) || 0;
+  const devTotal = (mob + dsk + tab) || 0;
+
+  const mobPct = devTotal > 0 ? Math.round((mob / devTotal) * 100) : 0;
+  const dskPct = devTotal > 0 ? Math.round((dsk / devTotal) * 100) : 0;
+  const tabPct = devTotal > 0 ? Math.round((tab / devTotal) * 100) : 0;
+
+  if ($('devMobileVal')) $('devMobileVal').textContent = `${formatNumberId(mob)} (${mobPct}%)`;
+  if ($('devMobileBar')) $('devMobileBar').style.width = `${mobPct}%`;
+
+  if ($('devDesktopVal')) $('devDesktopVal').textContent = `${formatNumberId(dsk)} (${dskPct}%)`;
+  if ($('devDesktopBar')) $('devDesktopBar').style.width = `${dskPct}%`;
+
+  if ($('devTabletVal')) $('devTabletVal').textContent = `${formatNumberId(tab)} (${tabPct}%)`;
+  if ($('devTabletBar')) $('devTabletBar').style.width = `${tabPct}%`;
+
+  if ($('vbDevicesSub')) {
+    $('vbDevicesSub').textContent = devTotal > 0 ? `Total ${formatNumberId(devTotal)} sample akses` : 'Menunggu data akses';
+  }
+
+  // 2. Halaman Terpopuler
+  const pathsWrap = $('vbPathsContainer');
+  if (pathsWrap) {
+    const paths = Array.isArray(visitorStatsData.paths) ? visitorStatsData.paths : [];
+    if (!paths.length) {
+      pathsWrap.innerHTML = '<div class="vbc-empty-small">Belum ada rincian data halaman. Kunjungan akan muncul secara otomatis.</div>';
+    } else {
+      // Ambil max 6 teratas
+      const topPaths = paths.slice(0, 6);
+      const maxViews = Math.max(...topPaths.map(p => p.views || 0), 1);
+      
+      pathsWrap.innerHTML = topPaths.map(item => {
+        const v = parseInt(item.views, 10) || 0;
+        const pct = Math.min(100, Math.round((v / maxViews) * 100));
+        const cleanPath = escapeHtml(item.path || '/');
+        const cleanTitle = escapeHtml(item.title || 'Halaman SIPALARUS');
+        return `
+          <div class="vbc-path-item">
+            <div class="vbc-path-info">
+              <span class="vbc-path-badge">${cleanPath}</span>
+              <span class="vbc-path-title" title="${cleanTitle}">${cleanTitle}</span>
+            </div>
+            <div class="vbc-path-stat">
+              <span class="vbc-path-views">${formatNumberId(v)} views</span>
+              <div class="vbc-bar-bg small"><div class="vbc-bar-fill path-bar" style="width: ${pct}%"></div></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
 }
 
 /**

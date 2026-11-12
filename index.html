@@ -1293,11 +1293,11 @@
           <div class="card-panel-header">
             <div class="cph-title-group">
               <div class="vsh-badge-row">
-                <span class="vsh-badge">GOOGLE ANALYTICS 4</span>
-                <span class="vsh-badge-pill" id="visitorSourceBadge">Sync: Memuat...</span>
+                <span class="vsh-badge">NATIVE ANALYTICS ENGINE</span>
+                <span class="vsh-badge-pill green" id="visitorSourceBadge">Real-Time: Aktif</span>
               </div>
               <h2>STATISTIK PENGUNJUNG WEBSITE</h2>
-              <span class="cph-sub" id="visitorStatsSub">Data kunjungan website publik sipalarus.com (Total Page Views)</span>
+              <span class="cph-sub" id="visitorStatsSub">Data kunjungan website publik sipalarus.com (Total Page Views Real-Time &amp; 100% Mandiri)</span>
             </div>
             <div class="cph-action-group">
               <button type="button" class="tbl-action-btn refresh-user-btn" id="btnRefreshVisitor" onclick="loadVisitorStats(true)" title="Sinkronkan data kunjungan dari Google Analytics / Server">
@@ -1390,6 +1390,57 @@
             </div>
           </div>
 
+          <!-- Visualisasi Breakdown: Distribusi Perangkat & Halaman Populer -->
+          <div class="visitor-breakdown-row">
+            <!-- Kartu 1: Distribusi Perangkat -->
+            <div class="visitor-breakdown-card">
+              <div class="vbc-header">
+                <div class="vbc-title">
+                  <svg viewBox="0 0 24 24" class="vbc-icon" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                  <h4>Distribusi Perangkat Pengunjung</h4>
+                </div>
+                <span class="vbc-sub" id="vbDevicesSub">Mobile vs Desktop</span>
+              </div>
+              <div class="vbc-body" id="vbDevicesContainer">
+                <div class="vbc-item">
+                  <div class="vbc-item-head">
+                    <span class="vbc-name">📱 Smartphone / Mobile</span>
+                    <span class="vbc-val" id="devMobileVal">0 (0%)</span>
+                  </div>
+                  <div class="vbc-bar-bg"><div class="vbc-bar-fill mobile" id="devMobileBar" style="width: 0%"></div></div>
+                </div>
+                <div class="vbc-item">
+                  <div class="vbc-item-head">
+                    <span class="vbc-name">💻 Desktop / Komputer</span>
+                    <span class="vbc-val" id="devDesktopVal">0 (0%)</span>
+                  </div>
+                  <div class="vbc-bar-bg"><div class="vbc-bar-fill desktop" id="devDesktopBar" style="width: 0%"></div></div>
+                </div>
+                <div class="vbc-item">
+                  <div class="vbc-item-head">
+                    <span class="vbc-name">📟 Tablet</span>
+                    <span class="vbc-val" id="devTabletVal">0 (0%)</span>
+                  </div>
+                  <div class="vbc-bar-bg"><div class="vbc-bar-fill tablet" id="devTabletBar" style="width: 0%"></div></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Kartu 2: Halaman Populer -->
+            <div class="visitor-breakdown-card">
+              <div class="vbc-header">
+                <div class="vbc-title">
+                  <svg viewBox="0 0 24 24" class="vbc-icon" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                  <h4>Halaman Paling Sering Dikunjungi</h4>
+                </div>
+                <span class="vbc-sub">Top Page Views</span>
+              </div>
+              <div class="vbc-body vbc-paths-list" id="vbPathsContainer">
+                <div class="vbc-empty-small">Belum ada rincian data halaman</div>
+              </div>
+            </div>
+          </div>
+
           <!-- Tabel Riwayat Kunjungan -->
           <div class="visitor-table-section">
             <div class="visitor-table-header">
@@ -1460,7 +1511,7 @@
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
             </div>
             <div class="vfn-text" id="visitorFooterText">
-              Sumber data: <strong>Google Analytics 4 &amp; Realtime Page View Engine</strong>. Seluruh data dihitung berdasarkan total page_view publik (tanpa data pribadi pemohon / privasi terlindungi). Zona waktu: <strong>Asia/Jakarta (WIB)</strong>.
+              Sumber data: <strong>SIPALARUS Native Real-Time Engine (Internal Database)</strong>. Kunjungan dihitung secara real-time dan mandiri (kebal ad-blocker &amp; privasi terlindungi tanpa NIK/IP). Zona waktu: <strong>Asia/Jakarta (WIB)</strong>.
             </div>
           </div>
 
