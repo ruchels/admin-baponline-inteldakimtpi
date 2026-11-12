@@ -4910,7 +4910,10 @@ async function loadVisitorStats(manual = false) {
 
   try {
     const token = getAdminToken();
-    if (!token) return;
+    if (!token) {
+      renderVisitorError('Sesi admin tidak ditemukan. Silakan login ulang.');
+      return;
+    }
 
     const res = await fetch(`${SHEET_URL}?action=getVisitorStats&token=${encodeURIComponent(token)}`, {
       cache: 'no-store'
@@ -4924,6 +4927,7 @@ async function loadVisitorStats(manual = false) {
 
     if (!json || !json.ok) {
       console.warn('loadVisitorStats response not ok:', json);
+      renderVisitorError(json?.error || 'Data statistik pengunjung belum tersedia atau sinkronisasi tertunda.');
       if (manual) {
         playAlertChime();
         showToast('error', json?.error || 'Gagal memuat statistik pengunjung website.');
@@ -4959,6 +4963,7 @@ async function loadVisitorStats(manual = false) {
     }
   } catch (err) {
     console.error('Error loadVisitorStats:', err);
+    renderVisitorError('Koneksi ke server analitik terganggu. Periksa jaringan atau klik Muat Ulang.');
     if (manual) {
       playAlertChime();
       showToast('error', 'Koneksi ke endpoint analitik terganggu.');
@@ -4968,6 +4973,38 @@ async function loadVisitorStats(manual = false) {
       btn.classList.remove('spinning');
       btn.disabled = false;
     }
+  }
+}
+
+/**
+ * Tampilkan pesan penanganan error pada tabel riwayat saat pengambilan data terkendala
+ */
+function renderVisitorError(msg) {
+  const tbody = $('visitorTableBody');
+  const empty = $('visitorTableEmpty');
+  const paginationBar = $('visitorPaginationBar');
+  if (paginationBar) paginationBar.style.display = 'none';
+  if (empty) empty.style.display = 'none';
+
+  if (tbody) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4" style="text-align: center; padding: 36px 16px; color: var(--text-muted, #94a3b8);">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" style="opacity: 0.6; color: #f59e0b;">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span style="font-weight: 600; font-size: 13px; color: var(--text);">${escapeHtml(msg || 'Data kunjungan belum dapat dimuat')}</span>
+            <span style="font-size: 11px; max-width: 380px;">Pastikan pembaruan Apps Script terbaru telah di-deploy (New Version) di editor Google Apps Script.</span>
+            <button type="button" class="tbl-action-btn" onclick="loadVisitorStats(true)" style="margin-top: 8px;">
+              <span>Muat Ulang Data</span>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
   }
 }
 
