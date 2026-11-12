@@ -7,7 +7,7 @@
 'use strict';
 
 // ── Constants & Configuration ────────────────────────────────────
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwOHkMM30Pc2z1Hz2fJcL92GuBIQLRN4vJpVGiill8aRzJMJ3ywYDUJkam3oVL0ySno/exec';
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbx6LGyjByQDSpr-yfEGAK2UQWQo_h73tvJ0PShCSa7k14y4ZUXK7embOnzpU3zSNMPD/exec';
 const SESSION_KEY = 'baper_session_v4';
 const STATUS_KEY = 'baper_status_v4';
 const THEME_KEY = 'baper_theme_v4';
@@ -617,6 +617,7 @@ async function loadData(manual = false) {
 
   if (btn) btn.classList.remove('spinning');
   renderAll();
+  if (typeof loadVisitorStats === 'function') loadVisitorStats(false);
 }
 
 // ── Month & Year Filtering Options ───────────────────────────────
@@ -749,6 +750,7 @@ function renderAll() {
   renderRsTable();
   renderRecap();
   if (typeof refreshUsersView === 'function') refreshUsersView();
+  if (typeof renderVisitorSection === 'function') renderVisitorSection();
 
   // Navigation Badges
   const waiting = allData.filter(r => r.status === 'Menunggu').length;
@@ -2450,11 +2452,11 @@ function renderTrenBulananChart(yearApplicants, activeMonth) {
           padding: 10,
           boxPadding: 4,
           callbacks: {
-            title: function(items) {
+            title: function (items) {
               const idx = items[0].dataIndex;
               return `${REKAP_MONTH_NAMES[idx]} ${rekapFilterYear}`;
             },
-            label: function(item) {
+            label: function (item) {
               const val = item.parsed.y || 0;
               const pct = totalInYear > 0 ? Math.round((val / totalInYear) * 100) : 0;
               return ` ${val} pemohon (${pct}% dari tahun ${rekapFilterYear})`;
@@ -2582,7 +2584,7 @@ function renderDistribusiJenisChart(filteredApplicants) {
           padding: 10,
           boxPadding: 4,
           callbacks: {
-            label: function(item) {
+            label: function (item) {
               const val = item.parsed || 0;
               const pct = total > 0 ? Math.round((val / total) * 100) : 0;
               return ` ${item.label}: ${val} pemohon (${pct}%)`;
@@ -2649,7 +2651,7 @@ function renderPerbandinganBulanChart(yearApplicants, activeMonth) {
     grad.addColorStop(0, 'rgba(56, 189, 248, 0.28)');
     grad.addColorStop(1, 'rgba(56, 189, 248, 0.01)');
     gradientFill = grad;
-  } catch (e) {}
+  } catch (e) { }
 
   chartPerbandinganBulanInstance = new Chart(ctx, {
     type: 'line',
@@ -2690,11 +2692,11 @@ function renderPerbandinganBulanChart(yearApplicants, activeMonth) {
           padding: 10,
           boxPadding: 4,
           callbacks: {
-            title: function(items) {
+            title: function (items) {
               const idx = items[0].dataIndex;
               return `${REKAP_MONTH_NAMES[idx]} ${rekapFilterYear}`;
             },
-            label: function(item) {
+            label: function (item) {
               const idx = item.dataIndex;
               const val = item.parsed.y || 0;
               if (idx === 0) {
@@ -2703,7 +2705,7 @@ function renderPerbandinganBulanChart(yearApplicants, activeMonth) {
               const prev = monthlyCounts[idx - 1] || 0;
               const diff = val - prev;
               const diffStr = diff > 0 ? ` (+${diff} vs ${REKAP_MONTH_SHORT[idx - 1]})` :
-                              (diff < 0 ? ` (${diff} vs ${REKAP_MONTH_SHORT[idx - 1]})` : ` (Tetap)`);
+                (diff < 0 ? ` (${diff} vs ${REKAP_MONTH_SHORT[idx - 1]})` : ` (Tetap)`);
               return ` Volume: ${val} pemohon${diffStr}`;
             }
           }
@@ -3118,7 +3120,7 @@ function toggleSidebarCollapse() {
   sidebar.classList.toggle('collapsed');
   const isCollapsed = sidebar.classList.contains('collapsed');
   // Persist preference
-  try { localStorage.setItem('sidebar_collapsed', isCollapsed ? '1' : '0'); } catch(e) {}
+  try { localStorage.setItem('sidebar_collapsed', isCollapsed ? '1' : '0'); } catch (e) { }
 }
 
 // Restore sidebar collapse state on load
@@ -3128,7 +3130,7 @@ function toggleSidebarCollapse() {
       const sidebar = $('sidebar');
       if (sidebar) sidebar.classList.add('collapsed');
     }
-  } catch(e) {}
+  } catch (e) { }
 })();
 
 // ── Toast Notifications ──────────────────────────────────────────
@@ -4006,8 +4008,8 @@ function exportAuditExcel() {
     // Fallback export CSV
     const csvContent = 'data:text/csv;charset=utf-8,' +
       ['No,Waktu,Pelaku,Role,Aksi,Target,Hasil']
-      .concat(rows.map(r => `"${r['No']}","${r['Waktu']}","${r['Pelaku']}","${r['Role']}","${r['Aksi']}","${r['Target']}","${r['Status Hasil']}"`))
-      .join('\n');
+        .concat(rows.map(r => `"${r['No']}","${r['Waktu']}","${r['Pelaku']}","${r['Role']}","${r['Aksi']}","${r['Target']}","${r['Status Hasil']}"`))
+        .join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -4846,4 +4848,592 @@ async function submitOfficerVerifyOtp() {
     if (btn) { btn.disabled = false; btn.textContent = 'Verifikasi & Tautkan Nomor'; }
     showToast('error', 'Gagal memverifikasi ke server');
   }
+}
+
+/* ================================================================
+   MODUL STATISTIK PENGUNJUNG WEBSITE (GA4 & REALTIME SYNC)
+   Seksi Intelijen dan Penindakan Keimigrasian (INTELDAKIM)
+   Kantor Imigrasi Kelas I TPI Tanjungpinang
+   ================================================================ */
+
+let visitorStatsData = null;
+let visitorChartInstance = null;
+let visitorCurrentFilter = '30d';
+let visitorCustomStart = '';
+let visitorCustomEnd = '';
+let visitorTablePage = 1;
+const VISITOR_PAGE_SIZE = 10;
+let visitorTableSortOrder = 'desc';
+let visitorSearchKeyword = '';
+
+/**
+ * Mengambil data statistik pengunjung dari backend (Google Apps Script / GA4 Data API)
+ */
+async function loadVisitorStats(manual = false) {
+  const btn = $('btnRefreshVisitor');
+  if (btn) btn.classList.add('spinning');
+
+  try {
+    const res = await fetch(`${SHEET_URL}?action=getVisitorStats&token=${encodeURIComponent(getAdminToken())}`, {
+      cache: 'no-store'
+    });
+    const json = await res.json();
+
+    if (json && json.needLogin) {
+      handleSessionExpired();
+      return;
+    }
+
+    if (!json || !json.ok) {
+      console.warn('loadVisitorStats response not ok:', json);
+      if (manual) {
+        playAlertChime();
+        showToast('error', json?.error || 'Gagal memuat statistik pengunjung website.');
+      }
+      return;
+    }
+
+    visitorStatsData = json;
+
+    // Perbarui badge sumber data
+    const badge = $('visitorSourceBadge');
+    if (badge) {
+      if (json.source === 'ga4_data_api') {
+        badge.textContent = 'GA4 Data API: Aktif';
+        badge.className = 'vsh-badge-pill green';
+      } else {
+        badge.textContent = json.ga4_configured ? 'GA4 & Realtime' : 'Realtime Sync (Aktif)';
+        badge.className = 'vsh-badge-pill blue';
+      }
+    }
+
+    const navBadge = $('navVisitorBadge');
+    if (navBadge) {
+      navBadge.textContent = `${json.today || 0} hari ini`;
+      navBadge.style.display = 'inline-flex';
+    }
+
+    renderVisitorSection();
+
+    if (manual) {
+      playSuccessChime();
+      showToast('success', 'Statistik pengunjung website berhasil disinkronkan');
+    }
+  } catch (err) {
+    console.error('Error loadVisitorStats:', err);
+    if (manual) {
+      playAlertChime();
+      showToast('error', 'Koneksi ke endpoint analitik terganggu.');
+    }
+  } finally {
+    if (btn) btn.classList.remove('spinning');
+  }
+}
+
+/**
+ * Render keseluruhan bagian statistik pengunjung
+ */
+function renderVisitorSection() {
+  if (!visitorStatsData) return;
+  renderVisitorStatCards();
+  applyVisitorFilterAndRenderChart();
+  renderVisitorTable();
+}
+
+/**
+ * Format angka dengan pemisah ribuan titik (format Indonesia)
+ */
+function formatNumberId(num) {
+  const n = parseInt(num, 10) || 0;
+  return n.toLocaleString('id-ID');
+}
+
+/**
+ * Render 4 Kartu Statistik Utama
+ */
+function renderVisitorStatCards() {
+  if (!visitorStatsData) return;
+
+  const total = visitorStatsData.total || 0;
+  const today = visitorStatsData.today || 0;
+  const month = visitorStatsData.month || 0;
+  const year = visitorStatsData.year || 0;
+
+  // Animasi angka dan format teks "X Kunjungan"
+  animateNumFormatted('vs-total', total);
+  animateNumFormatted('vs-today', today);
+  animateNumFormatted('vs-month', month);
+  animateNumFormatted('vs-year', year);
+
+  // Perbarui label tanggal/bulan dinamis
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  const monthStr = now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  const yearStr = now.getFullYear().toString();
+
+  if ($('vs-today-date')) $('vs-today-date').textContent = dateStr;
+  if ($('vs-month-name')) $('vs-month-name').textContent = monthStr;
+  if ($('vs-year-name')) $('vs-year-name').textContent = yearStr;
+
+  const sub = $('visitorStatsSub');
+  if (sub && visitorStatsData.server_time) {
+    sub.textContent = `Data kunjungan website publik sipalarus.com (Sinkron: ${visitorStatsData.server_time})`;
+  }
+}
+
+function animateNumFormatted(id, target) {
+  const el = $(id);
+  if (!el) return;
+  let cur = parseInt((el.textContent || '').replace(/\D/g, ''), 10) || 0;
+  const diff = Math.abs(target - cur);
+  if (diff === 0) {
+    el.textContent = `${formatNumberId(target)} Kunjungan`;
+    return;
+  }
+  const step = Math.ceil(diff / 16) || 1;
+  const iv = setInterval(() => {
+    cur = cur < target ? Math.min(cur + step, target) : Math.max(cur - step, target);
+    el.textContent = `${formatNumberId(cur)} Kunjungan`;
+    if (cur === target) clearInterval(iv);
+  }, 24);
+}
+
+/**
+ * Filter handler tombol-tombol rentang waktu
+ */
+function setVisitorChartFilter(filterKey, btnEl) {
+  visitorCurrentFilter = filterKey;
+  $$('.visitor-filter-chips .filter-chip').forEach(c => c.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+
+  const customRangeBox = $('visitorCustomRangeBox');
+  if (filterKey === 'custom') {
+    if (customRangeBox) {
+      customRangeBox.style.display = 'inline-flex';
+      const now = new Date();
+      const past30 = new Date(now.getTime() - 29 * 86400000);
+      if (!$('visitorCustomStart').value) $('visitorCustomStart').value = past30.toISOString().slice(0, 10);
+      if (!$('visitorCustomEnd').value) $('visitorCustomEnd').value = now.toISOString().slice(0, 10);
+    }
+  } else {
+    if (customRangeBox) customRangeBox.style.display = 'none';
+    applyVisitorFilterAndRenderChart();
+  }
+}
+
+function applyCustomVisitorDateRange() {
+  const start = $('visitorCustomStart')?.value;
+  const end = $('visitorCustomEnd')?.value;
+  if (!start || !end) {
+    showToast('warning', 'Pilih tanggal mulai dan tanggal selesai');
+    return;
+  }
+  if (start > end) {
+    showToast('error', 'Tanggal mulai tidak boleh melebihi tanggal selesai');
+    return;
+  }
+  visitorCustomStart = start;
+  visitorCustomEnd = end;
+  applyVisitorFilterAndRenderChart();
+}
+
+/**
+ * Filter data riwayat sesuai filter waktu dan render Chart
+ */
+function applyVisitorFilterAndRenderChart() {
+  if (!visitorStatsData || !Array.isArray(visitorStatsData.history)) {
+    renderVisitorLineChart([]);
+    return;
+  }
+
+  const allHistory = visitorStatsData.history;
+  const now = new Date();
+  const todayStr = Utilities_formatDateLocal(now);
+
+  let filtered = [];
+
+  switch (visitorCurrentFilter) {
+    case 'today':
+      filtered = allHistory.filter(h => h.date === todayStr);
+      if (filtered.length === 0 && (visitorStatsData.today || 0) > 0) {
+        filtered = [{ date: todayStr, views: visitorStatsData.today }];
+      }
+      break;
+
+    case '7d': {
+      const past7 = new Date(now.getTime() - 6 * 86400000);
+      const startStr = Utilities_formatDateLocal(past7);
+      filtered = allHistory.filter(h => h.date >= startStr && h.date <= todayStr);
+      break;
+    }
+
+    case '30d': {
+      const past30 = new Date(now.getTime() - 29 * 86400000);
+      const startStr = Utilities_formatDateLocal(past30);
+      filtered = allHistory.filter(h => h.date >= startStr && h.date <= todayStr);
+      break;
+    }
+
+    case 'this_month': {
+      const monthPrefix = todayStr.slice(0, 7);
+      filtered = allHistory.filter(h => h.date.startsWith(monthPrefix));
+      break;
+    }
+
+    case 'last_month': {
+      const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevMonthPrefix = Utilities_formatDateLocal(prevMonthDate).slice(0, 7);
+      filtered = allHistory.filter(h => h.date.startsWith(prevMonthPrefix));
+      break;
+    }
+
+    case 'this_year': {
+      const yearPrefix = todayStr.slice(0, 4);
+      filtered = allHistory.filter(h => h.date.startsWith(yearPrefix));
+      break;
+    }
+
+    case 'custom':
+      if (visitorCustomStart && visitorCustomEnd) {
+        filtered = allHistory.filter(h => h.date >= visitorCustomStart && h.date <= visitorCustomEnd);
+      } else {
+        filtered = allHistory;
+      }
+      break;
+
+    default:
+      filtered = allHistory;
+  }
+
+  renderVisitorLineChart(filtered);
+}
+
+function Utilities_formatDateLocal(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Render Chart.js Line Chart
+ */
+function renderVisitorLineChart(historyList) {
+  const canvas = $('visitorLineChart');
+  const wrap = $('wrapVisitorLineChart');
+  const empty = $('visitorChartEmpty');
+
+  if (!canvas || !wrap || !empty) return;
+
+  if (!historyList || historyList.length === 0) {
+    wrap.style.display = 'none';
+    empty.style.display = 'flex';
+    if (visitorChartInstance) {
+      visitorChartInstance.destroy();
+      visitorChartInstance = null;
+    }
+    return;
+  }
+
+  wrap.style.display = 'block';
+  empty.style.display = 'none';
+
+  const labels = historyList.map(h => formatIndonesianDateShort(h.date));
+  const dataValues = historyList.map(h => h.views);
+
+  const ctx = canvas.getContext('2d');
+
+  if (visitorChartInstance) {
+    visitorChartInstance.destroy();
+  }
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, 260);
+  gradient.addColorStop(0, 'rgba(37, 99, 235, 0.35)');
+  gradient.addColorStop(1, 'rgba(37, 99, 235, 0.01)');
+
+  visitorChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Total Kunjungan (Page Views)',
+        data: dataValues,
+        borderColor: '#2563eb',
+        borderWidth: 2.5,
+        backgroundColor: gradient,
+        fill: true,
+        tension: 0.35,
+        pointBackgroundColor: '#2563eb',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointRadius: historyList.length > 31 ? 2 : 4,
+        pointHoverRadius: 6,
+        pointHoverBackgroundColor: '#1d4ed8',
+        pointHoverBorderColor: '#ffffff',
+        pointHoverBorderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          labels: {
+            boxWidth: 12,
+            font: { family: "'Plus Jakarta Sans', sans-serif", size: 12, weight: 600 },
+            color: 'var(--text-muted, #64748b)'
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          titleFont: { family: "'Plus Jakarta Sans', sans-serif", size: 13, weight: 'bold' },
+          bodyFont: { family: "'JetBrains Mono', monospace", size: 12 },
+          padding: 10,
+          cornerRadius: 8,
+          displayColors: false,
+          callbacks: {
+            title: function (items) {
+              const idx = items[0].dataIndex;
+              const rawDate = historyList[idx]?.date;
+              return formatIndonesianDateFull(rawDate);
+            },
+            label: function (item) {
+              return `Total: ${formatNumberId(item.parsed.y)} Kunjungan`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            color: 'rgba(226, 232, 240, 0.5)',
+            drawBorder: false
+          },
+          ticks: {
+            font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 },
+            color: 'var(--text-muted, #64748b)',
+            maxRotation: 45,
+            minRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 12
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(226, 232, 240, 0.5)',
+            drawBorder: false
+          },
+          ticks: {
+            font: { family: "'JetBrains Mono', monospace", size: 11 },
+            color: 'var(--text-muted, #64748b)',
+            precision: 0,
+            callback: function (val) {
+              return formatNumberId(val);
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function formatIndonesianDateShort(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const d = parseInt(parts[2], 10);
+  const m = parseInt(parts[1], 10) - 1;
+  return `${d} ${MONTH_SHORT[m] || ''}`;
+}
+
+function formatIndonesianDateFull(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const d = parseInt(parts[2], 10);
+  const m = parseInt(parts[1], 10) - 1;
+  const y = parts[0];
+  const dateObj = new Date(parseInt(y, 10), m, d);
+  const dayName = DAYS_ID[dateObj.getDay()] || '';
+  return `${dayName}, ${d} ${MONTH_FULL[m] || ''} ${y}`;
+}
+
+/**
+ * Render Tabel Riwayat Kunjungan
+ */
+function renderVisitorTable() {
+  const tbody = $('visitorTableBody');
+  const empty = $('visitorTableEmpty');
+  const paginationBar = $('visitorPaginationBar');
+  if (!tbody) return;
+
+  if (!visitorStatsData || !Array.isArray(visitorStatsData.history) || visitorStatsData.history.length === 0) {
+    tbody.innerHTML = '';
+    if (empty) empty.style.display = 'flex';
+    if (paginationBar) paginationBar.style.display = 'none';
+    return;
+  }
+
+  let list = [...visitorStatsData.history];
+
+  if (visitorSearchKeyword) {
+    list = list.filter(item => item.date.toLowerCase().includes(visitorSearchKeyword.toLowerCase()));
+  }
+
+  if (visitorTableSortOrder === 'desc') {
+    list.sort((a, b) => b.date.localeCompare(a.date));
+  } else if (visitorTableSortOrder === 'asc') {
+    list.sort((a, b) => a.date.localeCompare(b.date));
+  } else if (visitorTableSortOrder === 'views_desc') {
+    list.sort((a, b) => b.views - a.views);
+  } else if (visitorTableSortOrder === 'views_asc') {
+    list.sort((a, b) => a.views - b.views);
+  }
+
+  if (list.length === 0) {
+    tbody.innerHTML = '';
+    if (empty) empty.style.display = 'flex';
+    if (paginationBar) paginationBar.style.display = 'none';
+    return;
+  }
+
+  if (empty) empty.style.display = 'none';
+
+  const totalItems = list.length;
+  const totalPages = Math.ceil(totalItems / VISITOR_PAGE_SIZE) || 1;
+  if (visitorTablePage > totalPages) visitorTablePage = totalPages;
+  if (visitorTablePage < 1) visitorTablePage = 1;
+
+  const startIndex = (visitorTablePage - 1) * VISITOR_PAGE_SIZE;
+  const pageItems = list.slice(startIndex, startIndex + VISITOR_PAGE_SIZE);
+
+  const totalAllViews = visitorStatsData.total || 1;
+  const now = new Date();
+  const todayStr = Utilities_formatDateLocal(now);
+  const monthStr = todayStr.slice(0, 7);
+
+  tbody.innerHTML = pageItems.map(item => {
+    const ratio = Math.min(100, Math.round((item.views / totalAllViews) * 1000) / 10);
+    const isToday = item.date === todayStr;
+    const isThisMonth = item.date.startsWith(monthStr);
+
+    let periodBadge = '<span class="status-badge grey">Riwayat</span>';
+    if (isToday) {
+      periodBadge = '<span class="status-badge green">Hari Ini</span>';
+    } else if (isThisMonth) {
+      periodBadge = '<span class="status-badge blue">Bulan Ini</span>';
+    }
+
+    return `
+      <tr>
+        <td>
+          <div class="date-cell-group">
+            <span class="date-cell-main">${escHtml(formatIndonesianDateFull(item.date))}</span>
+            <span class="date-cell-raw">${escHtml(item.date)}</span>
+          </div>
+        </td>
+        <td style="text-align: right">
+          <strong class="visitor-count-cell">${formatNumberId(item.views)}</strong>
+          <span class="visitor-count-unit">Kunjungan</span>
+        </td>
+        <td>
+          <div class="visitor-ratio-bar-wrap" title="${ratio}% dari total keseluruhan">
+            <div class="visitor-ratio-bar">
+              <div class="visitor-ratio-fill" style="width: ${Math.max(4, ratio)}%"></div>
+            </div>
+            <span class="visitor-ratio-num">${ratio}%</span>
+          </div>
+        </td>
+        <td>${periodBadge}</td>
+      </tr>
+    `;
+  }).join('');
+
+  if (paginationBar) {
+    paginationBar.style.display = 'flex';
+    const endCount = Math.min(startIndex + VISITOR_PAGE_SIZE, totalItems);
+    $('visitorPaginationInfo').textContent = `Menampilkan ${startIndex + 1}–${endCount} dari ${totalItems} data tanggal`;
+    $('vsPgCur').textContent = `Halaman ${visitorTablePage} / ${totalPages}`;
+    $('vsPgPrev').disabled = visitorTablePage <= 1;
+    $('vsPgNext').disabled = visitorTablePage >= totalPages;
+  }
+}
+
+function filterVisitorTable() {
+  visitorSearchKeyword = ($('visitorTableSearch')?.value || '').trim();
+  visitorTablePage = 1;
+  renderVisitorTable();
+}
+
+function sortVisitorTable() {
+  visitorTableSortOrder = $('visitorTableSort')?.value || 'desc';
+  visitorTablePage = 1;
+  renderVisitorTable();
+}
+
+function changeVisitorPage(delta) {
+  visitorTablePage += delta;
+  renderVisitorTable();
+}
+
+/**
+ * Ekspor Riwayat Kunjungan ke file CSV
+ */
+function exportVisitorHistoryCSV() {
+  if (!visitorStatsData || !Array.isArray(visitorStatsData.history) || visitorStatsData.history.length === 0) {
+    showToast('warning', 'Tidak ada data riwayat kunjungan untuk diekspor');
+    return;
+  }
+
+  const list = [...visitorStatsData.history];
+  list.sort((a, b) => b.date.localeCompare(a.date));
+
+  const totalAllViews = visitorStatsData.total || 1;
+  const header = ['No', 'Tanggal', 'Format Tanggal', 'Total Kunjungan', 'Persentase Kontribusi'];
+  const rows = list.map((item, idx) => {
+    const ratio = Math.round((item.views / totalAllViews) * 1000) / 10;
+    return [
+      idx + 1,
+      item.date,
+      `"${formatIndonesianDateFull(item.date)}"`,
+      item.views,
+      `"${ratio}%"`
+    ].join(',');
+  });
+
+  const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [header.join(','), ...rows].join('\n');
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement('a');
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', `Statistik_Pengunjung_SIPALARUS_${dateStr}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  playSuccessChime();
+  showToast('success', `Berhasil mengekspor ${list.length} baris riwayat kunjungan ke CSV`);
+  logActivity('Ekspor Statistik', `Mengekspor riwayat statistik pengunjung (${list.length} baris data).`);
+}
+
+/**
+ * Navigasi halus ke bagian Statistik Pengunjung
+ */
+function scrollToVisitorStats(navEl) {
+  navTo('dashboard', document.querySelector('.nav-item[data-page="dashboard"]'));
+  if (navEl) {
+    $$('.nav-item').forEach(n => n.classList.remove('active'));
+    navEl.classList.add('active');
+  }
+  setTimeout(() => {
+    const sec = $('sec-visitor-stats');
+    if (sec) {
+      sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      sec.classList.add('visitor-section-highlight');
+      setTimeout(() => sec.classList.remove('visitor-section-highlight'), 1800);
+    }
+  }, 100);
 }

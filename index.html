@@ -208,6 +208,12 @@
           <span class="nav-label">Rekap &amp; Laporan</span>
         </button>
 
+        <button class="nav-item" role="menuitem" data-page="visitor" onclick="scrollToVisitorStats(this)">
+          <span class="nav-icon" aria-hidden="true">V</span>
+          <span class="nav-label">Pengunjung Web</span>
+          <span class="nav-badge green" id="navVisitorBadge" style="display:none">0</span>
+        </button>
+
         <div class="nav-section-title">Alat &amp; Audit</div>
 
         <button class="nav-item" role="menuitem" data-page="audit" onclick="navTo('audit',this)">
@@ -364,6 +370,10 @@
                 onclick="navTo('pendaftar', document.querySelector('[data-page=pendaftar]'))">
                 Buka Data Pendaftar
               </button>
+              <button class="dhb-quick-btn dhb-quick-visitor"
+                onclick="scrollToVisitorStats()">
+                Statistik Pengunjung
+              </button>
             </div>
           </div>
         </div>
@@ -483,6 +493,188 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+
+        <!-- ============================================================
+             STATISTIK PENGUNJUNG WEBSITE (GA4 & REALTIME SYNC)
+        ============================================================ -->
+        <div class="visitor-stats-wrapper" id="sec-visitor-stats">
+          <div class="card-panel visitor-main-card">
+            <div class="card-panel-header">
+              <div class="cph-title-group">
+                <div class="vsh-badge-row">
+                  <span class="vsh-badge">GOOGLE ANALYTICS 4</span>
+                  <span class="vsh-badge-pill" id="visitorSourceBadge">Sync: Memuat...</span>
+                </div>
+                <h2>STATISTIK PENGUNJUNG WEBSITE</h2>
+                <span class="cph-sub" id="visitorStatsSub">Data kunjungan website publik sipalarus.com (Total Page Views)</span>
+              </div>
+              <div class="cph-action-group">
+                <button type="button" class="panel-link-btn" id="btnRefreshVisitor" onclick="loadVisitorStats(true)" title="Perbarui Statistik Pengunjung">
+                  <svg viewBox="0 0 24 24" class="btn-svg-icon" aria-hidden="true"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                  Sinkronkan Kunjungan
+                </button>
+              </div>
+            </div>
+
+            <!-- 4 Kartu Statistik Utama -->
+            <div class="stat-overview-grid visitor-stat-grid" role="region" aria-label="Ringkasan Statistik Kunjungan">
+              <!-- A. Total Kunjungan -->
+              <div class="stat-tile tile-visitor-total" id="tileVisitorTotal">
+                <div class="stat-tile-head">
+                  <span class="tile-icon-badge blue">Total Kunjungan</span>
+                  <span class="tile-ratio" id="vs-total-ratio">Semua Halaman</span>
+                </div>
+                <div class="stat-tile-value" id="vs-total">0</div>
+                <div class="stat-tile-label">Total Keseluruhan Page Views</div>
+              </div>
+
+              <!-- B. Kunjungan Hari Ini -->
+              <div class="stat-tile tile-visitor-today" id="tileVisitorToday">
+                <div class="stat-tile-head">
+                  <span class="tile-icon-badge green">Hari Ini</span>
+                  <span class="tile-ratio" id="vs-today-date">WIB</span>
+                </div>
+                <div class="stat-tile-value" id="vs-today">0</div>
+                <div class="stat-tile-label">Kunjungan Tanggal Berjalan (Asia/Jakarta)</div>
+              </div>
+
+              <!-- C. Kunjungan Bulan Ini -->
+              <div class="stat-tile tile-visitor-month" id="tileVisitorMonth">
+                <div class="stat-tile-head">
+                  <span class="tile-icon-badge yellow">Bulan Ini</span>
+                  <span class="tile-ratio" id="vs-month-name">Bulan Berjalan</span>
+                </div>
+                <div class="stat-tile-value" id="vs-month">0</div>
+                <div class="stat-tile-label">Total Kunjungan Bulan Ini</div>
+              </div>
+
+              <!-- D. Kunjungan Tahun Ini -->
+              <div class="stat-tile tile-visitor-year" id="tileVisitorYear">
+                <div class="stat-tile-head">
+                  <span class="tile-icon-badge purple">Tahun Ini</span>
+                  <span class="tile-ratio" id="vs-year-name">Tahun Berjalan</span>
+                </div>
+                <div class="stat-tile-value" id="vs-year">0</div>
+                <div class="stat-tile-label">Total Kunjungan Tahun Berjalan</div>
+              </div>
+            </div>
+
+            <!-- Visualisasi Grafik Interaktif -->
+            <div class="visitor-chart-card">
+              <div class="visitor-chart-header">
+                <div class="vch-title">
+                  <h3>Grafik Kunjungan Website SIPALARUS</h3>
+                  <p class="ach-subtitle">Tren frekuensi page view berdasarkan rentang waktu yang dipilih</p>
+                </div>
+                <!-- Filter Bar Grafik -->
+                <div class="visitor-filter-toolbar">
+                  <div class="visitor-filter-chips" role="group" aria-label="Filter Rentang Waktu Kunjungan">
+                    <button type="button" class="filter-chip" data-vfilter="today" onclick="setVisitorChartFilter('today', this)">Hari ini</button>
+                    <button type="button" class="filter-chip" data-vfilter="7d" onclick="setVisitorChartFilter('7d', this)">7 hari terakhir</button>
+                    <button type="button" class="filter-chip active" data-vfilter="30d" onclick="setVisitorChartFilter('30d', this)">30 hari terakhir</button>
+                    <button type="button" class="filter-chip" data-vfilter="this_month" onclick="setVisitorChartFilter('this_month', this)">Bulan ini</button>
+                    <button type="button" class="filter-chip" data-vfilter="last_month" onclick="setVisitorChartFilter('last_month', this)">Bulan sebelumnya</button>
+                    <button type="button" class="filter-chip" data-vfilter="this_year" onclick="setVisitorChartFilter('this_year', this)">Tahun ini</button>
+                    <button type="button" class="filter-chip" data-vfilter="custom" onclick="setVisitorChartFilter('custom', this)">Rentang khusus</button>
+                  </div>
+                  <!-- Custom Date Range Picker Container -->
+                  <div class="visitor-custom-range" id="visitorCustomRangeBox" style="display: none;">
+                    <input type="date" id="visitorCustomStart" class="control-input" aria-label="Tanggal Mulai">
+                    <span class="vcr-sep">s/d</span>
+                    <input type="date" id="visitorCustomEnd" class="control-input" aria-label="Tanggal Selesai">
+                    <button type="button" class="vcr-apply-btn" onclick="applyCustomVisitorDateRange()">Terapkan</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="visitor-chart-container">
+                <div class="visitor-chart-canvas-wrap" id="wrapVisitorLineChart">
+                  <canvas id="visitorLineChart" height="280"></canvas>
+                </div>
+                <div class="chart-empty-state" id="visitorChartEmpty" style="display: none;">
+                  <svg viewBox="0 0 24 24" class="empty-icon" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                  <div class="empty-title">Data Kunjungan Belum Tersedia</div>
+                  <div class="empty-sub">Belum ada catatan kunjungan pada rentang tanggal yang dipilih. Data akan terisi otomatis seiring kunjungan website publik sipalarus.com.</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tabel Riwayat Kunjungan -->
+            <div class="visitor-table-section">
+              <div class="visitor-table-header">
+                <div class="vth-title-group">
+                  <h3>Riwayat Kunjungan Harian</h3>
+                  <span class="vth-sub" id="visitorTableSub">Daftar rincian page view per tanggal</span>
+                </div>
+                <div class="visitor-table-actions">
+                  <div class="vth-filter-group">
+                    <input type="search" id="visitorTableSearch" class="control-input" placeholder="Cari tanggal (YYYY-MM-DD)..." oninput="filterVisitorTable()" aria-label="Cari riwayat tanggal">
+                    <select id="visitorTableSort" class="control-select" onchange="sortVisitorTable()" aria-label="Urutan tanggal">
+                      <option value="desc">Tanggal Terbaru &darr;</option>
+                      <option value="asc">Tanggal Terlama &uarr;</option>
+                      <option value="views_desc">Kunjungan Terbanyak &darr;</option>
+                      <option value="views_asc">Kunjungan Tersedikit &uarr;</option>
+                    </select>
+                    <button type="button" class="export-btn" onclick="exportVisitorHistoryCSV()" title="Ekspor riwayat ke file CSV">
+                      <svg viewBox="0 0 24 24" class="btn-svg-icon" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                      Ekspor CSV
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="table-responsive-wrapper">
+                <table class="data-table" aria-label="Tabel riwayat kunjungan website SIPALARUS">
+                  <thead>
+                    <tr>
+                      <th scope="col" style="width: 200px">Tanggal</th>
+                      <th scope="col" style="text-align: right; width: 180px">Total Kunjungan</th>
+                      <th scope="col" style="width: 250px">Persentase Kontribusi</th>
+                      <th scope="col">Status Periode</th>
+                    </tr>
+                  </thead>
+                  <tbody id="visitorTableBody">
+                    <tr class="loading-state-row">
+                      <td colspan="4">
+                        <div class="table-loader-state">
+                          <span class="spinner-circle"></span>
+                          <span>Memuat riwayat kunjungan website...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Pagination Riwayat Kunjungan -->
+              <div class="table-pagination-bar" id="visitorPaginationBar" style="display: none;">
+                <span class="pagination-info" id="visitorPaginationInfo">Menampilkan 1-10 dari 30 data</span>
+                <div class="pagination-btns">
+                  <button type="button" class="pg-btn" id="vsPgPrev" onclick="changeVisitorPage(-1)" disabled>&larr; Sebelumnya</button>
+                  <span class="pg-current" id="vsPgCur">Halaman 1</span>
+                  <button type="button" class="pg-btn" id="vsPgNext" onclick="changeVisitorPage(1)">Berikutnya &rarr;</button>
+                </div>
+              </div>
+
+              <!-- Empty State Riwayat -->
+              <div class="chart-empty-state" id="visitorTableEmpty" style="display: none; padding: 32px 16px;">
+                <div class="empty-title">Belum Ada Riwayat Kunjungan</div>
+                <div class="empty-sub">Riwayat statistik kunjungan akan otomatis terangkum di sini saat pengunjung mengakses sipalarus.com.</div>
+              </div>
+            </div>
+
+            <!-- Info Footer: Sumber Data & Privasi -->
+            <div class="visitor-footer-note">
+              <div class="vfn-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+              </div>
+              <div class="vfn-text" id="visitorFooterText">
+                Sumber data: <strong>Google Analytics 4 &amp; Realtime Page View Engine</strong>. Seluruh data dihitung berdasarkan total page_view publik (tanpa data pribadi pemohon / privasi terlindungi). Zona waktu: <strong>Asia/Jakarta (WIB)</strong>.
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
